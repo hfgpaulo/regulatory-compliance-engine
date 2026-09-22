@@ -1,0 +1,22 @@
+# Binarios e artefatos de build
+/regulatory-engine/bin/
+*.exe
+*.out
+
+# Variaveis de ambiente (nunca versionar segredos)
+.env
+*.env
+!.env.example
+
+# Hot reload (Air)
+/regulatory-engine/tmp/
+
+# Cobertura de testes
+coverage.*
+*.coverage
+
+# Sistema operacional / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

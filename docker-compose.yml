@@ -1,0 +1,25 @@
+# Orquestração dos serviços de infraestrutura para desenvolvimento local.
+# Por enquanto apenas o MongoDB; os serviços da aplicação (motor Go e gateway
+# PHP) entram no compose em blocos posteriores.
+services:
+  mongodb:
+    image: mongo:7
+    container_name: regulatory-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      # Credenciais de desenvolvimento (nao-secretas). Em produção viriam de
+      # variáveis de ambiente / secrets manager.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo_data:

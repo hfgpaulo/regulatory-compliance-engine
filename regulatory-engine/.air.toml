@@ -1,0 +1,16 @@
+# Configuração do Air (hot reload) para o motor Go.
+# Ao salvar um arquivo .go, o Air recompila e reinicia a API automaticamente.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Alvo .exe porque o desenvolvimento é em Windows.
+  cmd = "go build -o ./tmp/main.exe ./cmd/api"
+  bin = "./tmp/main.exe"
+  include_ext = ["go", "toml", "env"]
+  exclude_dir = ["tmp", "bin"]
+  delay = 500
+  stop_on_error = true
+
+[misc]
+  clean_on_exit = true

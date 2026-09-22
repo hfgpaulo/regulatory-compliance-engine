@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="560" viewBox="0 0 900 560" font-family="DejaVu Sans, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 z" fill="#1F3864"/>
+    </marker>
+  </defs>
+
+  <!-- outer: docker-compose -->
+  <rect x="15" y="15" width="870" height="525" rx="12" fill="#ffffff" stroke="#9fb0c9" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="450" y="42" text-anchor="middle" font-size="15" fill="#5b6b85" font-style="italic">docker-compose</text>
+
+  <!-- legacy-gateway -->
+  <rect x="55" y="70" width="330" height="215" rx="10" fill="#f7f9fc" stroke="#1F3864" stroke-width="1.6"/>
+  <text x="75" y="105" font-size="19" font-weight="bold" fill="#1F3864">legacy-gateway</text>
+  <text x="75" y="127" font-size="13" fill="#5b6b85">PHP 8 + Slim</text>
+  <text x="75" y="163" font-size="14" fill="#1a1a1a">•  intake de produto</text>
+  <text x="75" y="191" font-size="14" fill="#1a1a1a">•  orquestra a chamada</text>
+  <text x="75" y="219" font-size="14" fill="#1a1a1a">•  persiste o veredito</text>
+  <text x="75" y="247" font-size="14" fill="#1a1a1a">•  expõe o relatório</text>
+
+  <!-- regulatory-engine -->
+  <rect x="515" y="70" width="330" height="215" rx="10" fill="#eef2f9" stroke="#1F3864" stroke-width="1.6"/>
+  <text x="535" y="105" font-size="19" font-weight="bold" fill="#1F3864">regulatory-engine</text>
+  <text x="535" y="127" font-size="13" fill="#5b6b85">Go 1.25 + Fiber v3</text>
+  <text x="535" y="163" font-size="14" fill="#1a1a1a">•  motor de regras</text>
+  <text x="535" y="191" font-size="14" fill="#1a1a1a">•  domínios regulatórios</text>
+  <text x="535" y="219" font-size="14" fill="#1a1a1a">•  gera "gap report"</text>
+  <text x="535" y="247" font-size="14" fill="#1a1a1a">•  regras configuráveis</text>
+
+  <!-- arrows between services -->
+  <text x="450" y="150" text-anchor="middle" font-size="12.5" fill="#5b6b85">HTTP / REST</text>
+  <line x1="388" y1="163" x2="512" y2="163" stroke="#1F3864" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="512" y1="205" x2="388" y2="205" stroke="#1F3864" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <text x="450" y="228" text-anchor="middle" font-size="12.5" fill="#5b6b85">JSON</text>
+
+  <!-- down arrows -->
+  <line x1="220" y1="285" x2="220" y2="378" stroke="#1F3864" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="680" y1="285" x2="680" y2="378" stroke="#1F3864" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <!-- MongoDB -->
+  <rect x="95" y="382" width="250" height="95" rx="10" fill="#f7f9fc" stroke="#1F3864" stroke-width="1.6"/>
+  <text x="220" y="422" text-anchor="middle" font-size="17" font-weight="bold" fill="#1F3864">MongoDB</text>
+  <text x="220" y="447" text-anchor="middle" font-size="13" fill="#5b6b85">submissões, vereditos</text>
+
+  <!-- regras.json -->
+  <rect x="555" y="382" width="250" height="95" rx="10" fill="#f7f9fc" stroke="#1F3864" stroke-width="1.6"/>
+  <text x="680" y="422" text-anchor="middle" font-size="17" font-weight="bold" fill="#1F3864">regras.json</text>
+  <text x="680" y="447" text-anchor="middle" font-size="13" fill="#5b6b85">parametrização regulatória</text>
+</svg>
