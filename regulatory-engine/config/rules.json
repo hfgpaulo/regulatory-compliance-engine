@@ -4,5 +4,9 @@
   },
   "fx": {
     "usd_brl": "5.00"
+  },
+  "pld": {
+    "reporting_threshold": { "amount": "50000", "currency": "BRL" },
+    "sanctioned_names": ["Ivan Petrov", "Mara Costa"]
   }
 }

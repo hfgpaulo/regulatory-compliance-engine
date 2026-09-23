@@ -41,6 +41,8 @@ func main() {
 	}
 	eng := engine.New(
 		rules.NewIOFRule(params.IOF.InternationalTransfer.Rate, params.FX.USDBRL),
+		rules.NewPLDThresholdRule(params.PLD.ReportingThreshold.Amount, params.FX.USDBRL),
+		rules.NewPLDScreeningRule(params.PLD.SanctionedNames),
 	)
 	log.Printf("motor de regras carregado (%s)", cfg.RulesPath)
 

@@ -14,7 +14,19 @@ import (
 type Parameters struct {
 	IOF IOFParams `json:"iof"`
 	FX  FXParams  `json:"fx"`
-	// PLD entra no Bloco 3.
+	PLD PLDParams `json:"pld"`
+}
+
+// PLDParams agrupa a parametrização de Prevenção à Lavagem de Dinheiro.
+type PLDParams struct {
+	ReportingThreshold Threshold `json:"reporting_threshold"` // teto de comunicação ao COAF
+	SanctionedNames    []string  `json:"sanctioned_names"`    // lista mock de sancionados
+}
+
+// Threshold é um limite monetário com a moeda em que foi definido.
+type Threshold struct {
+	Amount   decimal.Decimal `json:"amount"`
+	Currency string          `json:"currency"`
 }
 
 // IOFParams agrupa a parametrização do IOF por tipo de operação.
