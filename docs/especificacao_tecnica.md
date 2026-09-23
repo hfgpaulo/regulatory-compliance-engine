@@ -60,13 +60,18 @@ Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzi
 
 ```
 POST /api/v1/evaluate
-  → recebe uma operação/produto, retorna o veredito de conformidade + gap report
-GET  /api/v1/rules
-  → lista as regras carregadas (transparência da parametrização)
+  → avalia um produto/operação, PERSISTE e retorna a avaliação criada (201)
+    { id, created_at, request, report }
+GET  /api/v1/evaluations
+  → lista as avaliações mais recentes
+GET  /api/v1/evaluations/{id}
+  → recupera uma avaliação pelo id
 GET  /api/v1/health
   → healthcheck
+GET  /api/v1/rules
+  → lista as regras carregadas (bloco futuro)
 GET  /swagger/*
-  → documentação OpenAPI
+  → documentação OpenAPI (bloco futuro)
 ```
 
 **Exemplo de requisição** (`POST /api/v1/evaluate`):
@@ -86,7 +91,7 @@ GET  /swagger/*
 }
 ```
 
-**Exemplo de resposta (gap report):**
+**Exemplo do `report`** (dentro da avaliação retornada pelo `POST`):
 ```json
 {
   "compliant": false,
@@ -151,13 +156,11 @@ regulatory-compliance-engine/
 
 ## 7. Modelo de dados (MongoDB)
 
-Banco `regulatory`, coleções orientadas a documento (encaixe natural com os payloads JSON):
+Banco `regulatory`. A avaliação é gravada como **um único documento embedded** na coleção `evaluations` — o modelo idiomático de MongoDB: uma escrita, e uma leitura traz o quadro completo, sem "join".
 
-- **`submissions`**: cada produto/operação enviado para avaliação — documento com o payload original, origem e data.
-- **`verdicts`**: resultado retornado pelo motor — documento com `compliant`, o array `results` (um por domínio), `required_adaptations` e referência (`submission_id`) à submissão.
-- **`applied_rules`** (opcional): trilha de quais regras dispararam, para auditoria.
+- **`evaluations`**: `{ _id, created_at, request { ... }, report { ... } }` — a submissão original e o veredito produzido, juntos no mesmo documento.
 
-> A natureza documental do MongoDB casa com o formato do gap report: o veredito é gravado praticamente como a própria resposta da API, sem mapeamento objeto-relacional.
+Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo), preservando a precisão e permitindo consultas e agregações por valor.
 
 ## 8. Qualidade e demonstração
 

@@ -46,8 +46,10 @@ curl http://localhost:3000/api/v1/health
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET`  | `/api/v1/health`   | Healthcheck |
-| `POST` | `/api/v1/evaluate` | Avalia um produto/operação e retorna o *gap report* |
+| `GET`  | `/api/v1/health`            | Healthcheck |
+| `POST` | `/api/v1/evaluate`          | Avalia um produto/operação, **persiste** e retorna a avaliação criada (201) |
+| `GET`  | `/api/v1/evaluations`       | Lista as avaliações mais recentes |
+| `GET`  | `/api/v1/evaluations/{id}`  | Recupera uma avaliação pelo id |
 
 Exemplo de avaliação:
 
@@ -61,12 +63,16 @@ curl -X POST http://localhost:3000/api/v1/evaluate \
       }'
 ```
 
-Resposta (*gap report*):
+Resposta (`201 Created`) — a avaliação persistida (`id`, `created_at`, `request` e o `report`):
 
 ```json
 {
-  "compliant": false,
-  "results": [
+  "id": "665f...c3",
+  "created_at": "2026-09-23T16:00:00Z",
+  "request": { "product": { "...": "..." }, "operation": { "...": "..." } },
+  "report": {
+    "compliant": false,
+    "results": [
     {
       "domain": "IOF",
       "status": "adaptation_required",
@@ -82,10 +88,11 @@ Resposta (*gap report*):
       "reference": "rule:pld.reporting_threshold"
     }
   ],
-  "required_adaptations": [
-    "Incluir calculo e retencao de IOF no fluxo de entrada.",
-    "Gerar comunicacao ao COAF para a operacao."
-  ]
+    "required_adaptations": [
+      "Incluir calculo e retencao de IOF no fluxo de entrada.",
+      "Gerar comunicacao ao COAF para a operacao."
+    ]
+  }
 }
 ```
 
