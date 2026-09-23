@@ -1,12 +1,20 @@
 // Package money encapsula a representação de valores monetários.
 //
 // Money embute um decimal.Decimal (precisão exata, sem float) e padroniza a
-// serialização: no JSON, dinheiro sempre sai como string com 2 casas
-// ("1425.00"). Isso evita perda de precisão no cliente e dá consistência à
-// API — todo valor monetário tem o mesmo formato.
+// serialização em dois formatos:
+//   - JSON: string com 2 casas ("1425.00"), para não perder precisão no cliente;
+//   - BSON (MongoDB): Decimal128, o decimal nativo do Mongo — preciso e
+//     consultável (dá para filtrar/agregar por valor).
 package money
 
-import "github.com/shopspring/decimal"
+import (
+	"fmt"
+
+	"github.com/shopspring/decimal"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/bsontype"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 // Money representa um valor monetário. Embute decimal.Decimal, então herda
 // todas as operações aritméticas (Mul, Add, etc.).
@@ -28,4 +36,27 @@ func (m Money) MarshalJSON() ([]byte, error) {
 // delegando ao parser do decimal.
 func (m *Money) UnmarshalJSON(data []byte) error {
 	return m.Decimal.UnmarshalJSON(data)
+}
+
+// MarshalBSONValue grava o valor no MongoDB como Decimal128.
+func (m Money) MarshalBSONValue() (bsontype.Type, []byte, error) {
+	d128, err := primitive.ParseDecimal128(m.Decimal.String())
+	if err != nil {
+		return 0, nil, fmt.Errorf("money: erro ao converter para Decimal128: %w", err)
+	}
+	return bson.MarshalValue(d128)
+}
+
+// UnmarshalBSONValue lê um Decimal128 do MongoDB de volta para Money.
+func (m *Money) UnmarshalBSONValue(t bsontype.Type, data []byte) error {
+	var d128 primitive.Decimal128
+	if err := bson.UnmarshalValue(t, data, &d128); err != nil {
+		return err
+	}
+	d, err := decimal.NewFromString(d128.String())
+	if err != nil {
+		return fmt.Errorf("money: erro ao ler Decimal128: %w", err)
+	}
+	m.Decimal = d
+	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/database"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/engine"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/httpapi"
+	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/repository"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/rules"
 )
 
@@ -46,13 +47,16 @@ func main() {
 	)
 	log.Printf("motor de regras carregado (%s)", cfg.RulesPath)
 
+	// Repositório de avaliações (persistência no MongoDB).
+	evaluationRepo := repository.NewEvaluationRepository(db)
+
 	app := fiber.New(fiber.Config{
 		AppName: "regulatory-engine",
 	})
 	app.Use(logger.New())
 
-	// Injeta o motor no servidor e registra as rotas.
-	server := httpapi.NewServer(eng)
+	// Injeta o motor e o repositório no servidor e registra as rotas.
+	server := httpapi.NewServer(eng, evaluationRepo)
 	server.Register(app)
 
 	address := ":" + cfg.Port
