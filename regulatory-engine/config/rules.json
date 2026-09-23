@@ -1,0 +1,8 @@
+{
+  "iof": {
+    "international_transfer": { "rate": "0.0038" }
+  },
+  "fx": {
+    "usd_brl": "5.00"
+  }
+}

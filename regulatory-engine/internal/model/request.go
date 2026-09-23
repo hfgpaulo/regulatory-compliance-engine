@@ -1,6 +1,6 @@
 package model
 
-import "github.com/shopspring/decimal"
+import "github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/money"
 
 // EvaluationRequest é a entrada do endpoint POST /api/v1/evaluate: descreve
 // um produto financeiro e a operação concreta que se pretende avaliar.
@@ -25,7 +25,7 @@ type Product struct {
 // Amount usa decimal.Decimal (nunca float) para evitar erros de precisão em
 // valores monetários — essencial num contexto de tributos e limites.
 type Operation struct {
-	Amount       decimal.Decimal `json:"amount"       bson:"amount"`
+	Amount       money.Money     `json:"amount"       bson:"amount"`
 	Currency     string          `json:"currency"     bson:"currency"`
 	Method       OperationMethod `json:"method"       bson:"method"`
 	Counterparty Counterparty    `json:"counterparty" bson:"counterparty"`

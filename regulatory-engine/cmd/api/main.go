@@ -10,13 +10,15 @@ import (
 
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/config"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/database"
+	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/engine"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/httpapi"
+	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/rules"
 )
 
 // main é o ponto de entrada da API. Sua única responsabilidade é "montar" a
-// aplicação: carregar a configuração, conectar ao banco, criar o servidor,
-// registrar as rotas e começar a ouvir. A lógica de negócio mora nos pacotes
-// internos, não aqui.
+// aplicação: carregar a configuração, conectar ao banco, montar o motor de
+// regras, criar o servidor, registrar as rotas e começar a ouvir. A lógica de
+// negócio mora nos pacotes internos, não aqui.
 func main() {
 	cfg := config.Load()
 
@@ -32,16 +34,24 @@ func main() {
 	}()
 	log.Printf("conectado ao MongoDB (db=%s)", db.Name())
 
+	// Carrega a parametrização regulatória e monta o motor com suas regras.
+	params, err := rules.Load(cfg.RulesPath)
+	if err != nil {
+		log.Fatalf("nao foi possivel carregar as regras: %v", err)
+	}
+	eng := engine.New(
+		rules.NewIOFRule(params.IOF.InternationalTransfer.Rate, params.FX.USDBRL),
+	)
+	log.Printf("motor de regras carregado (%s)", cfg.RulesPath)
+
 	app := fiber.New(fiber.Config{
 		AppName: "regulatory-engine",
 	})
-
-	// Log de requisições. Por enquanto no formato padrão do Fiber;
-	// os logs estruturados em JSON entram no bloco de observabilidade.
 	app.Use(logger.New())
 
-	// Registro de todas as rotas da API.
-	httpapi.RegisterRoutes(app)
+	// Injeta o motor no servidor e registra as rotas.
+	server := httpapi.NewServer(eng)
+	server.Register(app)
 
 	address := ":" + cfg.Port
 	log.Printf("regulatory-engine ouvindo em %s (env=%s)", address, cfg.AppEnv)

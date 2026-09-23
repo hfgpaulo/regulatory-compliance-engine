@@ -1,6 +1,6 @@
 package model
 
-import "github.com/shopspring/decimal"
+import "github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/money"
 
 // GapReport é a saída do endpoint /evaluate: o veredito de conformidade da
 // operação mais a lista de adaptações necessárias para operar no Brasil.
@@ -19,6 +19,6 @@ type Result struct {
 	Domain           Domain           `json:"domain"                      bson:"domain"`
 	Status           Status           `json:"status"                      bson:"status"`
 	Detail           string           `json:"detail"                      bson:"detail"`
-	CalculatedAmount *decimal.Decimal `json:"calculated_amount,omitempty" bson:"calculated_amount,omitempty"`
+	CalculatedAmount *money.Money `json:"calculated_amount,omitempty" bson:"calculated_amount,omitempty"`
 	Reference        string           `json:"reference"                   bson:"reference"`
 }
