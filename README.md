@@ -42,6 +42,45 @@ curl http://localhost:3000/api/v1/health
 # {"service":"regulatory-engine","status":"ok"}
 ```
 
+## Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET`  | `/api/v1/health`   | Healthcheck |
+| `POST` | `/api/v1/evaluate` | Avalia um produto/operação e retorna o *gap report* |
+
+Exemplo de avaliação:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+        "product":   { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+        "operation": { "amount": "75000.00", "currency": "USD", "method": "international_transfer",
+                       "counterparty": { "name": "John Doe", "pep": false } }
+      }'
+```
+
+Resposta (*gap report*):
+
+```json
+{
+  "compliant": false,
+  "results": [
+    {
+      "domain": "IOF",
+      "status": "adaptation_required",
+      "detail": "Entrada convertida de USD para BRL a 5.00; IOF de 0.38% aplicavel...",
+      "calculated_amount": "1425.00",
+      "reference": "rule:iof.international_transfer"
+    }
+  ],
+  "required_adaptations": ["Incluir calculo e retencao de IOF no fluxo de entrada."]
+}
+```
+
+> Os valores regulatórios (alíquotas, limites, câmbio) vivem em `regulatory-engine/config/rules.json` e são **configuráveis** — mudar a norma não exige recompilar a lógica.
+
 ## Estrutura
 
 ```
@@ -51,10 +90,15 @@ regulatory-compliance-engine/
 ├── docs/                     # especificação e diagramas
 └── regulatory-engine/        # motor de regras (Go)
     ├── cmd/api/              # ponto de entrada
+    ├── config/rules.json     # parametrização regulatória (alíquotas, limites, câmbio)
     └── internal/
         ├── config/           # configuração via ambiente
         ├── database/         # conexão com o MongoDB
-        └── httpapi/          # rotas e handlers HTTP
+        ├── model/            # structs do domínio (contrato)
+        ├── money/            # tipo monetário (decimal, sempre 2 casas)
+        ├── engine/           # interface Rule + avaliador
+        ├── rules/            # regras (ex.: IOF) + carregamento do rules.json
+        └── httpapi/          # servidor, rotas e handlers HTTP
 ```
 
 ## Status

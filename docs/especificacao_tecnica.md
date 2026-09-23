@@ -94,8 +94,8 @@ GET  /swagger/*
     {
       "domain": "IOF",
       "status": "adaptation_required",
-      "detail": "Operação sujeita a IOF na entrada; produto original não previa tributação.",
-      "calculated_amount": 288.75,
+      "detail": "Entrada convertida de USD para BRL a 5.00; IOF de 0.38% aplicável (produto original não previa tributação).",
+      "calculated_amount": "1425.00",
       "reference": "rule:iof.international_transfer"
     },
     {
@@ -112,27 +112,32 @@ GET  /swagger/*
 }
 ```
 
+> **Valores monetários** trafegam como **string com 2 casas** (`"1425.00"`), para não perder precisão no cliente. Na entrada, o campo `amount` aceita número ou string. Alíquotas e câmbio (parametrização) usam decimal simples.
+
 ## 6. Estrutura de pastas (monorepo)
 
 ```
 regulatory-compliance-engine/
 ├── docker-compose.yml
+├── Makefile                      # atalhos de desenvolvimento
 ├── README.md
 ├── docs/
 │   ├── especificacao_tecnica.md
 │   └── arquitetura.png           # diagrama (fonte: arquitetura.svg)
 ├── regulatory-engine/            # Go + Fiber
-│   ├── cmd/api/main.go
+│   ├── cmd/api/main.go           # ponto de entrada (montagem da aplicação)
 │   ├── internal/
-│   │   ├── engine/               # motor de avaliação
-│   │   ├── domains/             # pld, iof (cada um implementa uma interface Regra)
-│   │   ├── rules/               # carregamento da parametrização
-│   │   ├── httpapi/                 # handlers Fiber
-│   │   └── model/               # structs de domínio
-│   ├── config/rules.json
+│   │   ├── config/               # configuração via ambiente
+│   │   ├── database/             # conexão com o MongoDB
+│   │   ├── model/                # structs do domínio (contrato)
+│   │   ├── money/                # tipo monetário (decimal, sempre 2 casas)
+│   │   ├── engine/               # interface Rule + avaliador
+│   │   ├── rules/                # regras (ex.: IOF) + carregamento do rules.json
+│   │   └── httpapi/              # servidor, rotas e handlers
+│   ├── config/rules.json         # parametrização regulatória
 │   ├── go.mod
-│   └── Dockerfile
-├── legacy-gateway/               # PHP + Slim
+│   └── Dockerfile                # (bloco futuro)
+├── legacy-gateway/               # PHP + Slim (bloco futuro)
 │   ├── public/index.php
 │   ├── src/
 │   │   ├── Controller/
@@ -140,8 +145,8 @@ regulatory-compliance-engine/
 │   │   └── Repository/
 │   ├── composer.json
 │   └── Dockerfile
-└── db/
-    └── init.js                   # seed opcional de coleções/índices
+└── db/                           # seed de coleções/índices (bloco futuro)
+    └── init.js
 ```
 
 ## 7. Modelo de dados (MongoDB)
