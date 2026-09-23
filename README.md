@@ -73,9 +73,19 @@ Resposta (*gap report*):
       "detail": "Entrada convertida de USD para BRL a 5.00; IOF de 0.38% aplicavel...",
       "calculated_amount": "1425.00",
       "reference": "rule:iof.international_transfer"
+    },
+    {
+      "domain": "PLD_COAF",
+      "status": "reportable",
+      "detail": "Valor de 375000.00 BRL atinge o teto de comunicacao (50000.00 BRL); operacao reportavel ao COAF.",
+      "calculated_amount": "375000.00",
+      "reference": "rule:pld.reporting_threshold"
     }
   ],
-  "required_adaptations": ["Incluir calculo e retencao de IOF no fluxo de entrada."]
+  "required_adaptations": [
+    "Incluir calculo e retencao de IOF no fluxo de entrada.",
+    "Gerar comunicacao ao COAF para a operacao."
+  ]
 }
 ```
 
