@@ -162,6 +162,8 @@ Banco `regulatory`. A avaliação é gravada como **um único documento embedded
 
 Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo), preservando a precisão e permitindo consultas e agregações por valor.
 
+**Decisão de modelagem (embedded vs. referência).** `request` e `report` têm relação 1:1, nascem juntos e são sempre lidos juntos — portanto ficam **embutidos** no mesmo documento (separá-los em duas coleções seria um anti-padrão: duas escritas não-atômicas e um *join* na leitura, sem benefício). Como a avaliação é um **registro de auditoria**, o documento é tratado como um **retrato imutável** do que foi avaliado e do veredito daquele momento. Promover a **contraparte** a entidade própria (coleção `parties`) só se justificaria com uma **identidade estável** — um documento (CPF/CNPJ), não o nome — e fica no roadmap.
+
 ## 8. Qualidade e demonstração
 
 - **Testes automatizados** no motor Go (unitários por domínio + integração da API), com `testify`.
@@ -173,8 +175,10 @@ Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo
 
 ## 9. Roadmap (evolução futura)
 
-1. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
-2. Observabilidade completa: Prometheus + Grafana + Loki.
-3. Regras em banco com versionamento (histórico de vigência das normas).
-4. Screening PEP/sancionados contra fonte real.
-5. Autenticação (JWT) e trilha de auditoria.
+1. **Gateway PHP + Slim**: serviço que representa o sistema legado e chama o motor Go (integração legado ↔ novo).
+2. **Coleção `parties` (identidade de contraparte)**: promover a contraparte a entidade de primeira classe, identificada por **documento (CPF/CNPJ/tax id)** — não pelo nome — com índice único, e screening por documento. Envolve *entity resolution* (fuzzy matching contra listas de sanção), um problema à parte.
+3. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
+4. Observabilidade completa: Prometheus + Grafana + Loki.
+5. Regras em banco com versionamento (histórico de vigência das normas).
+6. Screening PEP/sancionados contra fonte real.
+7. Autenticação (JWT) e trilha de auditoria.

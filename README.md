@@ -120,4 +120,14 @@ regulatory-compliance-engine/
 
 ## Status
 
-Em desenvolvimento, construído em **blocos incrementais**. Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo e o roadmap.
+Em desenvolvimento, construído em **blocos incrementais**. Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo.
+
+## Roadmap
+
+- **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
+- **Identidade de contraparte (`parties`)** — promover a contraparte a entidade própria, identificada por documento (CPF/CNPJ), com *entity resolution* para screening.
+- **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
+- **Observabilidade completa** — Prometheus + Grafana + Loki.
+- **Regras versionadas em banco** — histórico de vigência das normas.
+
+Detalhes na [especificação técnica](docs/especificacao_tecnica.md#9-roadmap-evolução-futura).
