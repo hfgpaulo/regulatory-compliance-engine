@@ -50,3 +50,13 @@ jobs:
 
       - name: Test
         run: go test ./...
+
+  # Job paralelo: garante que o Dockerfile continua construindo a imagem.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t regulatory-engine:ci regulatory-engine
