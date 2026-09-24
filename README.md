@@ -18,7 +18,7 @@ Dado um produto ou operação financeira, o sistema responde a duas perguntas: *
 
 ## Stack
 
-Go 1.25 · Fiber v3 · MongoDB · Docker Compose. _(PHP/Slim, testes e CI/CD nas etapas seguintes.)_
+Go 1.25 · Fiber v3 · MongoDB · Docker Compose · GitHub Actions. Testes automatizados e CI já implementados; gateway PHP/Slim no roadmap.
 
 ## Como rodar (desenvolvimento)
 
@@ -43,6 +43,18 @@ Teste o healthcheck:
 curl http://localhost:3000/api/v1/health
 # {"service":"regulatory-engine","status":"ok"}
 ```
+
+## Testes
+
+Suíte de testes unitários e de handler. Não exige MongoDB — os handlers são
+testados contra a interface de persistência com um dublê em memória:
+
+```bash
+cd regulatory-engine
+go test ./...
+```
+
+A mesma verificação (`gofmt`, `build`, `vet`, `test`) roda no CI a cada push/PR.
 
 ## Endpoints
 
@@ -122,7 +134,7 @@ regulatory-compliance-engine/
 
 ## Status
 
-Em desenvolvimento, construído em **blocos incrementais**. Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo.
+Motor funcional com testes automatizados e CI verde, construído em **blocos incrementais**. Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo e as próximas etapas.
 
 ## Roadmap
 
