@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -23,6 +24,22 @@ type EvaluationRepository struct {
 // NewEvaluationRepository cria o repositório sobre a coleção "evaluations".
 func NewEvaluationRepository(db *mongo.Database) *EvaluationRepository {
 	return &EvaluationRepository{col: db.Collection("evaluations")}
+}
+
+// EnsureIndexes cria os índices de que as consultas do repositório dependem.
+// O createIndexes do MongoDB é idempotente: se o índice já existe com a mesma
+// especificação, nada acontece — por isso pode rodar a cada boot.
+func (r *EvaluationRepository) EnsureIndexes(ctx context.Context) error {
+	// List ordena por created_at desc; sem índice seria collection scan com
+	// ordenação em memória.
+	_, err := r.col.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "created_at", Value: -1}},
+		Options: options.Index().SetName("created_at_desc"),
+	})
+	if err != nil {
+		return fmt.Errorf("erro ao criar indice created_at_desc: %w", err)
+	}
+	return nil
 }
 
 // Save grava uma avaliação, preenchendo id e data quando ausentes.

@@ -57,6 +57,15 @@ func main() {
 	// Repositório de avaliações (persistência no MongoDB).
 	evaluationRepo := repository.NewEvaluationRepository(db)
 
+	// Índices no boot, também fail-fast: sem eles as consultas degradam em silêncio.
+	indexCtx, cancelIndex := context.WithTimeout(context.Background(), 10*time.Second)
+	err = evaluationRepo.EnsureIndexes(indexCtx)
+	cancelIndex()
+	if err != nil {
+		slog.Error("nao foi possivel criar os indices", "err", err)
+		os.Exit(1)
+	}
+
 	app := fiber.New(fiber.Config{
 		AppName: "regulatory-engine",
 	})
