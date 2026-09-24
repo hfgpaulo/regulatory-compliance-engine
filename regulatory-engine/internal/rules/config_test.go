@@ -1,6 +1,7 @@
 package rules
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,27 +18,68 @@ func writeRules(t *testing.T, content string) string {
 	return path
 }
 
-func rulesJSON(thresholdCurrency string) string {
-	return `{
-		"iof": {"international_transfer": {"rate": "0.0038"}},
-		"fx": {"usd_brl": "5.00"},
+// rulesFields são os valores parametrizáveis que os testes variam.
+type rulesFields struct {
+	rate, usdBRL, thresholdAmount, thresholdCurrency string
+}
+
+func validFields() rulesFields {
+	return rulesFields{rate: "0.0038", usdBRL: "5.00", thresholdAmount: "50000", thresholdCurrency: "BRL"}
+}
+
+func rulesJSON(f rulesFields) string {
+	return fmt.Sprintf(`{
+		"iof": {"international_transfer": {"rate": %q}},
+		"fx": {"usd_brl": %q},
 		"pld": {
-			"reporting_threshold": {"amount": "50000", "currency": "` + thresholdCurrency + `"},
+			"reporting_threshold": {"amount": %q, "currency": %q},
 			"sanctioned_names": ["Ivan Petrov"]
 		}
-	}`
+	}`, f.rate, f.usdBRL, f.thresholdAmount, f.thresholdCurrency)
 }
 
 func TestLoad_ValidFile(t *testing.T) {
-	params, err := Load(writeRules(t, rulesJSON("BRL")))
+	params, err := Load(writeRules(t, rulesJSON(validFields())))
 	require.NoError(t, err)
 	assert.Equal(t, "50000", params.PLD.ReportingThreshold.Amount.String())
 }
 
-func TestLoad_RejectsThresholdInOtherCurrency(t *testing.T) {
-	_, err := Load(writeRules(t, rulesJSON("USD")))
+func TestLoad_RejectsInvalidParameters(t *testing.T) {
+	cases := []struct {
+		name      string
+		mutate    func(f *rulesFields)
+		wantField string
+	}{
+		{"teto em outra moeda", func(f *rulesFields) { f.thresholdCurrency = "USD" }, "pld.reporting_threshold.currency"},
+		{"aliquota zero", func(f *rulesFields) { f.rate = "0" }, "iof.international_transfer.rate"},
+		{"aliquota negativa", func(f *rulesFields) { f.rate = "-0.0038" }, "iof.international_transfer.rate"},
+		{"aliquota de 100%", func(f *rulesFields) { f.rate = "1" }, "iof.international_transfer.rate"},
+		{"cambio zero", func(f *rulesFields) { f.usdBRL = "0" }, "fx.usd_brl"},
+		{"cambio negativo", func(f *rulesFields) { f.usdBRL = "-5.00" }, "fx.usd_brl"},
+		{"teto zero", func(f *rulesFields) { f.thresholdAmount = "0" }, "pld.reporting_threshold.amount"},
+		{"teto negativo", func(f *rulesFields) { f.thresholdAmount = "-1" }, "pld.reporting_threshold.amount"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := validFields()
+			tc.mutate(&f)
+
+			_, err := Load(writeRules(t, rulesJSON(f)))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.wantField)
+		})
+	}
+}
+
+// TestLoad_MissingKeysAreRejected cobre o caso que motiva o "maior que zero":
+// chave ausente (ou com nome digitado errado) vira zero no decimal.
+func TestLoad_MissingKeysAreRejected(t *testing.T) {
+	_, err := Load(writeRules(t, `{"pld": {"reporting_threshold": {"currency": "BRL"}}}`))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pld.reporting_threshold.currency")
+	for _, field := range []string{"iof.international_transfer.rate", "fx.usd_brl", "pld.reporting_threshold.amount"} {
+		assert.Contains(t, err.Error(), field, "todos os problemas devem ser reportados de uma vez")
+	}
 }
 
 // TestLoad_ShippedRulesFile garante que o rules.json versionado continua

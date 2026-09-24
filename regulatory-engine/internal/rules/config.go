@@ -70,6 +70,19 @@ func Load(path string) (Parameters, error) {
 func (p Parameters) Validate() error {
 	var errs []error
 
+	// Campo ausente no JSON vira zero, então "maior que zero" também pega
+	// chave esquecida ou digitada errado. Alíquota zero real se representa
+	// desligando a regra, não com rate 0.
+	if rate := p.IOF.InternationalTransfer.Rate; !rate.IsPositive() || rate.GreaterThanOrEqual(decimal.NewFromInt(1)) {
+		errs = append(errs, fmt.Errorf("iof.international_transfer.rate: deve ser maior que 0 e menor que 1, recebido %s", rate))
+	}
+	if fx := p.FX.USDBRL; !fx.IsPositive() {
+		errs = append(errs, fmt.Errorf("fx.usd_brl: deve ser maior que 0, recebido %s", fx))
+	}
+	if amount := p.PLD.ReportingThreshold.Amount; !amount.IsPositive() {
+		errs = append(errs, fmt.Errorf("pld.reporting_threshold.amount: deve ser maior que 0, recebido %s", amount))
+	}
+
 	// O teto é comparado com o valor já convertido para BRL; outra moeda
 	// aqui seria tratada como BRL sem aviso.
 	if c := p.PLD.ReportingThreshold.Currency; c != model.CurrencyBRL {
