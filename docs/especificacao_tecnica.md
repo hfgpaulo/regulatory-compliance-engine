@@ -28,7 +28,7 @@ O projeto demonstra três capacidades:
 
 Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzindo um padrão real de migração/modernização gradual — a coexistência entre um sistema legado e uma nova API. Hoje o motor e o MongoDB já rodam no compose; o gateway entra em bloco futuro:
 
-![Arquitetura da solução: gateway PHP, motor Go, MongoDB e rules.json orquestrados por Docker Compose](arquitetura.png)
+![Arquitetura da solução: motor Go e MongoDB orquestrados por Docker Compose, rules.json embutido no motor e gateway PHP como bloco futuro](arquitetura.png)
 
 **Papéis:**
 
