@@ -231,6 +231,8 @@ Um workflow de **GitHub Actions** roda a cada `push` na `main` e em todo *pull r
 3. **`go vet ./...`** — análise estática de problemas comuns.
 4. **`go test ./...`** — executa a suíte descrita acima.
 
+Em paralelo, um segundo job constrói a imagem Docker do motor (`docker build`), para que uma quebra no Dockerfile seja detectada no mesmo push, e não só no momento do deploy.
+
 O ambiente é fixado em Go 1.25 com cache de módulos. O valor concreto: a verificação deixa de depender da disciplina manual do desenvolvedor — um arquivo esquecido no commit, um `go.sum` inconsistente ou código desformatado são barrados antes de entrar na `main`. O estado do pipeline é exposto por um *badge* no README.
 
 ### 8.3. Observabilidade

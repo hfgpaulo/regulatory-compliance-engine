@@ -20,9 +20,19 @@ Dado um produto ou operação financeira, o sistema responde a duas perguntas: *
 
 Go 1.25 · Fiber v3 · MongoDB · Docker Compose · GitHub Actions. Testes automatizados e CI já implementados; gateway PHP/Slim no roadmap.
 
-## Como rodar (desenvolvimento)
+## Como rodar
 
-Pré-requisitos: **Go 1.25+** e **Docker**.
+Com **Docker** apenas (sem Go instalado), a stack completa — MongoDB + motor — sobe em containers:
+
+```bash
+docker compose up -d --build --wait
+```
+
+Ou `make up` / `make down`. A imagem do motor é multi-stage (binário estático sobre distroless, usuário sem privilégio) e leva o `rules.json` embutido.
+
+### Desenvolvimento (hot reload)
+
+Pré-requisitos: **Go 1.25+**, **Docker** e [Air](https://github.com/air-verse/air). Suba só o MongoDB e rode a API localmente — não use junto com `make up`, pois ambos ocupam a porta 3000.
 
 ```bash
 # sobe o MongoDB (aguarda ficar healthy) e a API com hot reload
