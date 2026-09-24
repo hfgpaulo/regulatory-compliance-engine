@@ -16,7 +16,7 @@ type EvaluationRequest struct {
 // Product descreve o produto financeiro que se pretende operar no Brasil.
 type Product struct {
 	Type           ProductType `json:"type"            bson:"type"`
-	Origin         string      `json:"origin"          bson:"origin"`           // país de origem (ex.: "US")
+	Origin         string      `json:"origin"          bson:"origin"`          // país de origem (ex.: "US")
 	OriginCurrency string      `json:"origin_currency" bson:"origin_currency"` // moeda de origem (ex.: "USD")
 }
 

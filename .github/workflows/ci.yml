@@ -1,0 +1,52 @@
+name: CI
+
+# Roda a verificação em uma máquina limpa a cada push na main e em todo PR.
+# É a mesma sequência que se roda localmente (fmt, build, vet, test), mas num
+# ambiente do zero: pega arquivo esquecido no commit, go.sum inconsistente ou
+# código não formatado antes de entrar na main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # O módulo Go mora em regulatory-engine/, não na raiz do repositório
+    # (monorepo poliglota). Todos os passos abaixo rodam dentro dessa pasta.
+    defaults:
+      run:
+        working-directory: regulatory-engine
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          # Cache de módulos embutido; usa o go.sum do módulo como chave.
+          cache: true
+          cache-dependency-path: regulatory-engine/go.sum
+
+      # Formatação: gofmt -l lista os arquivos fora do padrão. Se listar algo,
+      # falha o job (boa prática: formatação não é opinião, é padrão da linguagem).
+      - name: Check formatting (gofmt)
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "Arquivos fora do padrao gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...

@@ -16,9 +16,9 @@ type GapReport struct {
 // o domínio calcula um valor — por exemplo, o montante de IOF. Domínios que
 // não calculam nada (ex.: uma marcação de PLD) omitem o campo.
 type Result struct {
-	Domain           Domain           `json:"domain"                      bson:"domain"`
-	Status           Status           `json:"status"                      bson:"status"`
-	Detail           string           `json:"detail"                      bson:"detail"`
+	Domain           Domain       `json:"domain"                      bson:"domain"`
+	Status           Status       `json:"status"                      bson:"status"`
+	Detail           string       `json:"detail"                      bson:"detail"`
 	CalculatedAmount *money.Money `json:"calculated_amount,omitempty" bson:"calculated_amount,omitempty"`
-	Reference        string           `json:"reference"                   bson:"reference"`
+	Reference        string       `json:"reference"                   bson:"reference"`
 }

@@ -17,8 +17,8 @@ type Status string
 
 const (
 	StatusCompliant          Status = "compliant"           // conforme, nada a fazer
-	StatusAdaptationRequired Status = "adaptation_required"  // precisa de adaptação (ex.: reter IOF)
-	StatusReportable         Status = "reportable"           // gera obrigação de comunicação (ex.: COAF)
+	StatusAdaptationRequired Status = "adaptation_required" // precisa de adaptação (ex.: reter IOF)
+	StatusReportable         Status = "reportable"          // gera obrigação de comunicação (ex.: COAF)
 )
 
 // ProductType classifica o produto financeiro sob avaliação.

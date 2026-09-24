@@ -20,7 +20,7 @@ import (
 // interface, então o teste roda sem MongoDB. Save simula o repositório real
 // atribuindo um id quando ele vem vazio.
 type fakeStore struct {
-	saved map[string]*model.Evaluation
+	saved   map[string]*model.Evaluation
 	saveErr error
 }
 

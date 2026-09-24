@@ -1,5 +1,7 @@
 # Regulatory Compliance Engine
 
+![CI](https://github.com/hfgpaulo/regulatory-compliance-engine/actions/workflows/ci.yml/badge.svg)
+
 Motor de conformidade regulatória para a **tropicalização de serviços financeiros** (EUA → Brasil).
 
 Dado um produto ou operação financeira, o sistema responde a duas perguntas: **pode operar no Brasil?** e **o que precisa ser adaptado?** — aplicando regras regulatórias brasileiras (PLD/COAF, Câmbio/IOF) de forma **configurável**.
