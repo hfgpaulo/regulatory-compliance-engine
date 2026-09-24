@@ -1,29 +1,38 @@
 package httpapi
 
 import (
+	"context"
+
 	"github.com/gofiber/fiber/v3"
 
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/engine"
-	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/repository"
+	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/model"
 )
 
-// Server agrupa as dependências dos handlers HTTP (o motor de regras e o
-// repositório). Receber as dependências por injeção — em vez de variáveis
-// globais — deixa os handlers testáveis e as dependências explícitas.
+// EvaluationStore é o contrato de persistência de que os handlers precisam.
+// Depender de uma interface (definida aqui, onde é consumida) — e não do
+// repositório concreto — deixa os handlers testáveis com um "fake" em memória.
+type EvaluationStore interface {
+	Save(ctx context.Context, eval *model.Evaluation) error
+	FindByID(ctx context.Context, id string) (*model.Evaluation, error)
+	List(ctx context.Context, limit int64) ([]model.Evaluation, error)
+}
+
+// Server agrupa as dependências dos handlers HTTP (motor de regras e store).
 type Server struct {
 	engine *engine.Engine
-	repo   *repository.EvaluationRepository
+	store  EvaluationStore
 }
 
 // NewServer cria o servidor HTTP com suas dependências.
-func NewServer(eng *engine.Engine, repo *repository.EvaluationRepository) *Server {
-	return &Server{engine: eng, repo: repo}
+func NewServer(eng *engine.Engine, store EvaluationStore) *Server {
+	return &Server{engine: eng, store: store}
 }
 
-// Register adiciona todas as rotas da API à instância do Fiber.
-// Manter o registro em um único ponto facilita enxergar o contrato,
-// versionado sob /api/v1.
+// Register aplica o middleware de log e registra as rotas da API.
 func (s *Server) Register(app *fiber.App) {
+	app.Use(requestLogger)
+
 	v1 := app.Group("/api/v1")
 
 	v1.Get("/health", s.health)

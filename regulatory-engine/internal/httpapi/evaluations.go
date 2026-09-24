@@ -12,7 +12,7 @@ func (s *Server) listEvaluations(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	evaluations, err := s.repo.List(ctx, 50)
+	evaluations, err := s.store.List(ctx, 50)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "falha ao listar avaliacoes",
@@ -28,7 +28,7 @@ func (s *Server) getEvaluation(c fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	evaluation, err := s.repo.FindByID(ctx, id)
+	evaluation, err := s.store.FindByID(ctx, id)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "falha ao buscar a avaliacao",
