@@ -164,5 +164,9 @@ Motor funcional com testes automatizados e CI verde, construído em **blocos inc
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
 - **Observabilidade completa** — Prometheus + Grafana + Loki.
 - **Regras versionadas em banco** — histórico de vigência das normas.
+- **Screening contra fonte real** — PEP/sancionados consultados em fontes oficiais, não em lista mock.
+- **Autenticação e auditoria** — JWT e trilha de auditoria de acesso.
+- **Graceful shutdown** — tratar `SIGTERM` e concluir requisições em andamento antes de encerrar.
+- **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
 
 Detalhes na [especificação técnica](docs/especificacao_tecnica.md#9-roadmap-evolução-futura).

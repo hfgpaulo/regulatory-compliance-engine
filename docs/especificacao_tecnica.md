@@ -26,14 +26,14 @@ O projeto demonstra três capacidades:
 
 ## 3. Arquitetura
 
-Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzindo um padrão real de migração/modernização gradual — a coexistência entre um sistema legado e uma nova API:
+Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzindo um padrão real de migração/modernização gradual — a coexistência entre um sistema legado e uma nova API. Hoje o motor e o MongoDB já rodam no compose; o gateway entra em bloco futuro:
 
 ![Arquitetura da solução: gateway PHP, motor Go, MongoDB e rules.json orquestrados por Docker Compose](arquitetura.png)
 
 **Papéis:**
 
-- **`regulatory-engine` (Go + Fiber):** coração do projeto. Recebe uma operação/produto e devolve o veredito de conformidade. Contém o motor de regras e os domínios regulatórios. Não tem estado de negócio (stateless); lê a parametrização de um arquivo/tabela de regras.
-- **`legacy-gateway` (PHP + Slim):** representa o sistema legado de uma instituição financeira. Faz o *intake* das submissões, chama o motor Go, persiste o resultado no MongoDB e expõe o histórico e o relatório regulatório. É o ponto de integração legado ↔ moderno.
+- **`regulatory-engine` (Go + Fiber):** coração do projeto. Recebe uma operação/produto, devolve o veredito de conformidade e **persiste cada avaliação no MongoDB** (requisição + veredito, como registro de auditoria), expondo o histórico por API. Contém o motor de regras e os domínios regulatórios e lê a parametrização de um arquivo de regras. Não guarda estado em memória entre requisições — todo estado vive no banco —, então escala horizontalmente.
+- **`legacy-gateway` (PHP + Slim, bloco futuro):** representa o sistema legado de uma instituição financeira. Faz o *intake* das submissões e chama o motor Go. É o ponto de integração legado ↔ moderno; o desenho detalhado (por exemplo, como consome o histórico) será definido no bloco do gateway.
 
 **Decisão de arquitetura-chave:** as regras (limites, alíquotas, gatilhos de reporte) **não são hardcoded** — vivem em parametrização configurável (`rules.json`, evoluível para tabela no banco). É uma boa prática essencial no contexto regulatório, porque norma muda com frequência.
 
@@ -52,16 +52,18 @@ Um teste carrega o `config/rules.json` versionado, de modo que uma parametrizaç
 
 > **Sobre os valores:** os números abaixo são *ilustrativos* para a estrutura funcionar. Antes de finalizar, confirmar os parâmetros vigentes nas fontes oficiais (Bacen, COAF/UIF, Receita Federal) e ajustar no `rules.json`. A arquitetura configurável existe justamente para isso.
 
+Cada item indica se já está **implementado** (com o código da regra) ou **planejado**.
+
 ### 4.1. PLD/FT + COAF (Prevenção à Lavagem de Dinheiro)
-- Detecção de operações acima de limite de reporte.
-- Marcação de operações **reportáveis ao COAF** (ex.: espécie acima de teto, fracionamento suspeito).
-- Screening simples contra lista de **PEP / sancionados** (lista mock local).
+- Operações com valor, convertido para BRL, igual ou acima do teto de comunicação → **reportáveis ao COAF**. *Implementado* (`pld.reporting_threshold`).
+- Screening contra lista de **PEP / sancionados** (lista mock local). *Implementado* (`pld.pep_screening`).
+- Outras hipóteses de comunicação (ex.: espécie acima de teto, fracionamento suspeito). *Planejado.*
 - Saída: alertas + indicação de comunicação obrigatória.
 
 ### 4.2. Câmbio / IOF (o core da "tropicalização")
-- Cálculo de **IOF** na entrada de recursos EUA → BR.
-- Conversão cambial (taxa parametrizável / mock).
-- Regras específicas por tipo de operação (transferência, investimento, empréstimo).
+- Cálculo de **IOF** na transferência internacional EUA → BR. *Implementado* (`iof.international_transfer`).
+- Conversão cambial com taxa parametrizável — hoje apenas USD → BRL. *Implementado.*
+- Regras para outros tipos de operação (investimento, empréstimo). *Planejado.*
 - Saída: tributos aplicáveis + adaptações necessárias vs. o produto original.
 
 ### 4.3. (Roadmap) Limites Bacen/Pix + LGPD
@@ -167,7 +169,8 @@ Evolução prevista: trocar `fx.usd_brl` por uma tabela de câmbio por moeda e e
 
 ```
 regulatory-compliance-engine/
-├── docker-compose.yml
+├── .github/workflows/ci.yml      # CI: gofmt, build, vet, test + docker build
+├── docker-compose.yml            # MongoDB + motor
 ├── Makefile                      # atalhos de desenvolvimento
 ├── README.md
 ├── docs/
@@ -178,25 +181,19 @@ regulatory-compliance-engine/
 │   ├── internal/
 │   │   ├── config/               # configuração via ambiente
 │   │   ├── database/             # conexão com o MongoDB
-│   │   ├── model/                # structs do domínio (contrato)
+│   │   ├── model/                # structs do domínio (contrato) + validação de entrada
 │   │   ├── money/                # tipo monetário (decimal, sempre 2 casas)
 │   │   ├── engine/               # interface Rule + avaliador
-│   │   ├── rules/                # regras (ex.: IOF) + carregamento do rules.json
+│   │   ├── rules/                # regras (IOF, PLD) + carregamento e validação do rules.json
+│   │   ├── repository/           # persistência das avaliações + índices
 │   │   └── httpapi/              # servidor, rotas e handlers
 │   ├── config/rules.json         # parametrização regulatória
 │   ├── go.mod
-│   └── Dockerfile                # (bloco futuro)
-├── legacy-gateway/               # PHP + Slim (bloco futuro)
-│   ├── public/index.php
-│   ├── src/
-│   │   ├── Controller/
-│   │   ├── Service/EngineClient.php   # integração com o motor Go
-│   │   └── Repository/
-│   ├── composer.json
-│   └── Dockerfile
-└── db/                           # seed de coleções/índices (bloco futuro)
-    └── init.js
+│   └── Dockerfile                # imagem multi-stage (distroless)
+└── legacy-gateway/               # PHP + Slim (bloco futuro; estrutura definida no bloco)
 ```
+
+Os índices do MongoDB são criados pelo próprio motor no boot (ver seção 7), sem script de *seed* separado.
 
 ## 7. Modelo de dados (MongoDB)
 
@@ -247,8 +244,7 @@ Limitação conhecida: isso **não** cancela a query quando o cliente desconecta
 
 ### 8.4. Demonstração
 
-- **README** com contexto de negócio, diagrama, como rodar (`docker compose up`), exemplos de chamada e o **roadmap**.
-- **Coleção de exemplos** (curl / Postman) para rodar em poucos minutos.
+- **README** com contexto de negócio, diagrama, como rodar (`docker compose up`, sem Go instalado), exemplos de chamada em curl e o **roadmap**.
 
 ## 9. Roadmap (evolução futura)
 
@@ -259,3 +255,5 @@ Limitação conhecida: isso **não** cancela a query quando o cliente desconecta
 5. Regras em banco com versionamento (histórico de vigência das normas).
 6. Screening PEP/sancionados contra fonte real.
 7. Autenticação (JWT) e trilha de auditoria.
+8. **Graceful shutdown**: tratar `SIGTERM` (enviado por `docker stop` e orquestradores) para parar de aceitar conexões, concluir as requisições em andamento e fechar o MongoDB — hoje o processo encerra de imediato.
+9. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.
