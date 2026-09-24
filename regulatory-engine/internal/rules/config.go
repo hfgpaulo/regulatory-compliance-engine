@@ -2,10 +2,13 @@ package rules
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/model"
 )
 
 // Parameters é a parametrização regulatória carregada do rules.json.
@@ -55,5 +58,23 @@ func Load(path string) (Parameters, error) {
 	if err := json.Unmarshal(data, &params); err != nil {
 		return Parameters{}, fmt.Errorf("erro ao interpretar %s: %w", path, err)
 	}
+	if err := params.Validate(); err != nil {
+		return Parameters{}, fmt.Errorf("parametrizacao invalida em %s: %w", path, err)
+	}
 	return params, nil
+}
+
+// Validate confere se a parametrização é coerente com o que as regras
+// assumem. Acumula todos os problemas para o boot falhar mostrando de uma
+// vez tudo o que precisa ser corrigido.
+func (p Parameters) Validate() error {
+	var errs []error
+
+	// O teto é comparado com o valor já convertido para BRL; outra moeda
+	// aqui seria tratada como BRL sem aviso.
+	if c := p.PLD.ReportingThreshold.Currency; c != model.CurrencyBRL {
+		errs = append(errs, fmt.Errorf("pld.reporting_threshold.currency: esperado %s, recebido %q", model.CurrencyBRL, c))
+	}
+
+	return errors.Join(errs...)
 }

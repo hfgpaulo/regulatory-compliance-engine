@@ -42,6 +42,10 @@ func (t ProductType) IsValid() bool {
 // errado. Suportar outras moedas exige uma tabela de câmbio por moeda.
 const CurrencyUSD = "USD"
 
+// CurrencyBRL é a moeda em que as regras comparam e calculam valores
+// (destino da conversão de câmbio e moeda do teto de comunicação ao COAF).
+const CurrencyBRL = "BRL"
+
 // OperationMethod descreve como a operação é realizada.
 type OperationMethod string
 
