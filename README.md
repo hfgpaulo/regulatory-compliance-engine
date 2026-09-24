@@ -110,6 +110,17 @@ Resposta (`201 Created`) — a avaliação persistida (`id`, `created_at`, `requ
 }
 ```
 
+Requisição inválida (campo ausente, valor não positivo ou com mais de 2 casas, tipo/método desconhecido, código de país/moeda fora do padrão ISO) retorna `400` com todos os campos inválidos, e nada é persistido:
+
+```json
+{
+  "error": "requisicao invalida",
+  "details": [{ "field": "operation.amount", "message": "deve ser maior que zero" }]
+}
+```
+
+As regras completas estão na [especificação técnica](docs/especificacao_tecnica.md#5-contrato-da-api-regulatory-engine).
+
 > Os valores regulatórios (alíquotas, limites, câmbio) vivem em `regulatory-engine/config/rules.json` e são **configuráveis** — mudar a norma não exige recompilar a lógica.
 
 ## Estrutura

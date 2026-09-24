@@ -119,6 +119,32 @@ GET  /swagger/*
 
 > **Valores monetários** trafegam como **string com 2 casas** (`"1425.00"`), para não perder precisão no cliente. Na entrada, o campo `amount` aceita número ou string. Alíquotas e câmbio (parametrização) usam decimal simples.
 
+**Validação de entrada.** Antes de chegar ao motor, a requisição é validada por `EvaluationRequest.Validate()` (camada de domínio). Sem essa barreira, campos ausentes viram *zero values* do Go (valor `0`, método vazio, nome vazio): as regras "não se aplicam" e a operação sairia **conforme por omissão** — o falso negativo silencioso que um motor de compliance não pode produzir.
+
+| Campo | Regra |
+|---|---|
+| `product.type` | valor conhecido (`personal_loan`) |
+| `product.origin` | código de país ISO 3166-1 alpha-2 (ex.: `US`) |
+| `product.origin_currency` | código de moeda ISO 4217 (ex.: `USD`) |
+| `operation.amount` | maior que zero, no máximo 2 casas decimais |
+| `operation.currency` | código de moeda ISO 4217 (ex.: `USD`) |
+| `operation.method` | valor conhecido (`international_transfer`) |
+| `operation.counterparty.name` | obrigatório (sem ele o screening fica cego) |
+
+Todos os campos inválidos são reportados de uma vez, com `400 Bad Request`, e nada é persistido:
+
+```json
+{
+  "error": "requisicao invalida",
+  "details": [
+    { "field": "operation.amount", "message": "deve ser maior que zero" },
+    { "field": "operation.method", "message": "metodo de operacao desconhecido" }
+  ]
+}
+```
+
+Decisões: a validação fica no domínio (não em tags de biblioteca) para manter a lista de valores válidos junto das constantes e testável sem HTTP; a origem é obrigatória porque a avaliação é um registro de auditoria, e tornar um campo obrigatório depois quebraria clientes, enquanto afrouxar não. Para os códigos de país e moeda valida-se só o formato, sem consultar a lista oficial.
+
 ## 6. Estrutura de pastas (monorepo)
 
 ```
@@ -172,9 +198,9 @@ A garantia de qualidade do `regulatory-engine` se apoia em três pilares impleme
 
 A suíte usa `testify` e cobre as três camadas do motor de forma independente:
 
-- **Testes unitários (table-driven).** As regras de negócio — cálculo de IOF, teto de comunicação ao COAF, screening de PEP/sancionados — e o tipo monetário são testados com tabelas de casos (entrada esperada vs. saída), o padrão idiomático em Go. Cada regra é verificada isoladamente: quando se aplica, o valor calculado, e quando **não** se aplica (retorno nulo).
+- **Testes unitários (table-driven).** As regras de negócio — cálculo de IOF, teto de comunicação ao COAF, screening de PEP/sancionados —, a validação de entrada e o tipo monetário são testados com tabelas de casos (entrada esperada vs. saída), o padrão idiomático em Go. Cada regra é verificada isoladamente: quando se aplica, o valor calculado, e quando **não** se aplica (retorno nulo).
 - **Teste de agregação do motor com dublê.** O avaliador (`engine`) é testado contra uma **regra falsa** (`fakeRule`) controlada pelo teste, não contra as regras reais. Assim se verifica apenas a responsabilidade do motor — agregar resultados, ignorar regras que não se aplicam, decidir conformidade e propagar erro — sem acoplamento ao comportamento de IOF ou PLD.
-- **Teste de handler HTTP sem banco.** Os handlers dependem da **interface** `EvaluationStore`, não do repositório concreto. Nos testes, injeta-se um **store falso em memória** (`fakeStore`) e exercitam-se as rotas de ponta a ponta com `app.Test` (sem abrir porta de rede nem exigir MongoDB): `POST /evaluate` retornando `201` e persistindo, corpo inválido retornando `400`, e busca inexistente retornando `404`.
+- **Teste de handler HTTP sem banco.** Os handlers dependem da **interface** `EvaluationStore`, não do repositório concreto. Nos testes, injeta-se um **store falso em memória** (`fakeStore`) e exercitam-se as rotas de ponta a ponta com `app.Test` (sem abrir porta de rede nem exigir MongoDB): `POST /evaluate` retornando `201` e persistindo, corpo malformado ou requisição incompleta retornando `400` (com a lista de campos inválidos e sem persistir), e busca inexistente retornando `404`.
 
 O ponto de projeto que torna isso possível é a **injeção de dependência** adotada nos blocos anteriores: como o servidor recebe o motor e o store por interface, ambos podem ser substituídos por dublês nos testes. Testes rápidos, determinísticos e que rodam em qualquer máquina limpa — inclusive no CI, sem infraestrutura.
 
