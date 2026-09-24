@@ -164,14 +164,39 @@ Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo
 
 **Decisão de modelagem (embedded vs. referência).** `request` e `report` têm relação 1:1, nascem juntos e são sempre lidos juntos — portanto ficam **embutidos** no mesmo documento (separá-los em duas coleções seria um anti-padrão: duas escritas não-atômicas e um *join* na leitura, sem benefício). Como a avaliação é um **registro de auditoria**, o documento é tratado como um **retrato imutável** do que foi avaliado e do veredito daquele momento. Promover a **contraparte** a entidade própria (coleção `parties`) só se justificaria com uma **identidade estável** — um documento (CPF/CNPJ), não o nome — e fica no roadmap.
 
-## 8. Qualidade e demonstração
+## 8. Testes e qualidade
 
-- **Testes automatizados** no motor Go (unitários por domínio + integração da API), com `testify`.
-- **CI/CD** (GitHub Actions): lint + testes + build a cada push/PR.
-- **OpenAPI/Swagger** no `regulatory-engine`.
-- **Logs estruturados** (JSON) nos dois serviços.
-- **README** com: contexto de negócio, diagrama, como rodar (`docker compose up`), exemplos de chamada (curl), e o **roadmap** (domínios extras, Grafana/Loki, screening real).
-- **Coleção de exemplos** (curl / Postman) para rodar em 1 minuto.
+A garantia de qualidade do `regulatory-engine` se apoia em três pilares implementados: uma suíte de testes automatizados, um pipeline de integração contínua que a executa a cada mudança, e logs estruturados para observabilidade.
+
+### 8.1. Estratégia de testes
+
+A suíte usa `testify` e cobre as três camadas do motor de forma independente:
+
+- **Testes unitários (table-driven).** As regras de negócio — cálculo de IOF, teto de comunicação ao COAF, screening de PEP/sancionados — e o tipo monetário são testados com tabelas de casos (entrada esperada vs. saída), o padrão idiomático em Go. Cada regra é verificada isoladamente: quando se aplica, o valor calculado, e quando **não** se aplica (retorno nulo).
+- **Teste de agregação do motor com dublê.** O avaliador (`engine`) é testado contra uma **regra falsa** (`fakeRule`) controlada pelo teste, não contra as regras reais. Assim se verifica apenas a responsabilidade do motor — agregar resultados, ignorar regras que não se aplicam, decidir conformidade e propagar erro — sem acoplamento ao comportamento de IOF ou PLD.
+- **Teste de handler HTTP sem banco.** Os handlers dependem da **interface** `EvaluationStore`, não do repositório concreto. Nos testes, injeta-se um **store falso em memória** (`fakeStore`) e exercitam-se as rotas de ponta a ponta com `app.Test` (sem abrir porta de rede nem exigir MongoDB): `POST /evaluate` retornando `201` e persistindo, corpo inválido retornando `400`, e busca inexistente retornando `404`.
+
+O ponto de projeto que torna isso possível é a **injeção de dependência** adotada nos blocos anteriores: como o servidor recebe o motor e o store por interface, ambos podem ser substituídos por dublês nos testes. Testes rápidos, determinísticos e que rodam em qualquer máquina limpa — inclusive no CI, sem infraestrutura.
+
+### 8.2. Integração contínua (CI)
+
+Um workflow de **GitHub Actions** roda a cada `push` na `main` e em todo *pull request*, numa máquina limpa do runner. A sequência reproduz a verificação local:
+
+1. **`gofmt`** — falha o build se houver código fora do padrão de formatação da linguagem.
+2. **`go build ./...`** — garante que todo o módulo compila.
+3. **`go vet ./...`** — análise estática de problemas comuns.
+4. **`go test ./...`** — executa a suíte descrita acima.
+
+O ambiente é fixado em Go 1.25 com cache de módulos. O valor concreto: a verificação deixa de depender da disciplina manual do desenvolvedor — um arquivo esquecido no commit, um `go.sum` inconsistente ou código desformatado são barrados antes de entrar na `main`. O estado do pipeline é exposto por um *badge* no README.
+
+### 8.3. Observabilidade
+
+Os dois serviços emitem **logs estruturados em JSON** (via `slog` no motor Go). Um *middleware* de requisição registra método, rota, status e latência de cada chamada em formato de campo — pronto para ser filtrado por um agregador (Loki, ELK, CloudWatch) sem *parsing* de texto livre.
+
+### 8.4. Demonstração
+
+- **README** com contexto de negócio, diagrama, como rodar (`docker compose up`), exemplos de chamada e o **roadmap**.
+- **Coleção de exemplos** (curl / Postman) para rodar em poucos minutos.
 
 ## 9. Roadmap (evolução futura)
 
