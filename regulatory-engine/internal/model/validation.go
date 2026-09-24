@@ -59,8 +59,11 @@ func (r EvaluationRequest) Validate() error {
 	case !amount.Equal(amount.Round(2)):
 		add("operation.amount", "deve ter no maximo 2 casas decimais")
 	}
-	if !currencyCodePattern.MatchString(r.Operation.Currency) {
+	switch {
+	case !currencyCodePattern.MatchString(r.Operation.Currency):
 		add("operation.currency", "deve ser codigo de moeda ISO 4217 (ex.: USD)")
+	case r.Operation.Currency != CurrencyUSD:
+		add("operation.currency", "moeda nao suportada (aceita: "+CurrencyUSD+")")
 	}
 	if !r.Operation.Method.IsValid() {
 		add("operation.method", "metodo de operacao desconhecido")

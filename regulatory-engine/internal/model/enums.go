@@ -37,6 +37,11 @@ func (t ProductType) IsValid() bool {
 	return false
 }
 
+// CurrencyUSD é a única moeda de operação suportada hoje: a parametrização
+// de câmbio só conhece USD->BRL, então qualquer outra moeda seria convertida
+// errado. Suportar outras moedas exige uma tabela de câmbio por moeda.
+const CurrencyUSD = "USD"
+
 // OperationMethod descreve como a operação é realizada.
 type OperationMethod string
 

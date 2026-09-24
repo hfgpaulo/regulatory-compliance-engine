@@ -46,6 +46,8 @@ func TestValidate(t *testing.T) {
 			r.Operation.Amount = money.New(decimal.RequireFromString("1000.005"))
 		}, "operation.amount"},
 		{"moeda vazia", func(r *EvaluationRequest) { r.Operation.Currency = "" }, "operation.currency"},
+		{"moeda valida mas nao suportada", func(r *EvaluationRequest) { r.Operation.Currency = "BRL" }, "operation.currency"},
+		{"moeda de origem diferente de USD e aceita", func(r *EvaluationRequest) { r.Product.OriginCurrency = "EUR" }, ""},
 		{"metodo desconhecido", func(r *EvaluationRequest) { r.Operation.Method = "pix" }, "operation.method"},
 		{"contraparte em branco", func(r *EvaluationRequest) { r.Operation.Counterparty.Name = "   " }, "operation.counterparty.name"},
 	}
@@ -67,6 +69,16 @@ func TestValidate(t *testing.T) {
 			assert.Equal(t, tc.wantField, verr.Fields[0].Field)
 		})
 	}
+}
+
+func TestValidate_UnsupportedCurrencyIsDistinctFromMalformed(t *testing.T) {
+	req := validRequest()
+	req.Operation.Currency = "BRL"
+
+	var verr *ValidationError
+	require.ErrorAs(t, req.Validate(), &verr)
+	require.Len(t, verr.Fields, 1)
+	assert.Contains(t, verr.Fields[0].Message, "nao suportada")
 }
 
 func TestValidate_EmptyRequestReportsAllFields(t *testing.T) {
