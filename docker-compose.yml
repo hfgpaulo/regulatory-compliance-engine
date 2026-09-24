@@ -1,6 +1,5 @@
-# Orquestração dos serviços de infraestrutura para desenvolvimento local.
-# Por enquanto apenas o MongoDB; os serviços da aplicação (motor Go e gateway
-# PHP) entram no compose em blocos posteriores.
+# Orquestração local: MongoDB e o motor Go. O gateway PHP entra em um bloco
+# posterior. Para desenvolver com hot reload, suba só o MongoDB (make dev).
 services:
   mongodb:
     image: mongo:7
@@ -20,6 +19,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  regulatory-engine:
+    build: ./regulatory-engine
+    container_name: regulatory-engine
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Dentro da rede do compose o Mongo é alcançado pelo nome do serviço.
+      MONGO_URI: mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-admin123}@mongodb:27017
+      MONGO_DB: regulatory
+    depends_on:
+      # O motor é fail-fast sem banco: só sobe depois do Mongo ficar healthy.
+      mongodb:
+        condition: service_healthy
 
 volumes:
   mongo_data:

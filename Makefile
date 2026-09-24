@@ -1,9 +1,15 @@
 ENGINE = regulatory-engine
 
-.PHONY: help mongo-up mongo-down mongo-logs run dev build test tidy fmt vet
+.PHONY: help up down mongo-up mongo-down mongo-logs run dev build test tidy fmt vet
 
 help: ## Mostra esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
+
+up: ## Sobe a stack completa em containers (MongoDB + motor)
+	docker compose up -d --build --wait
+
+down: ## Para a stack completa
+	docker compose down
 
 mongo-up: ## Sobe o MongoDB (espera ficar healthy)
 	docker compose up -d --wait mongodb
