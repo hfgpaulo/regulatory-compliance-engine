@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -16,6 +17,15 @@ func (s *Server) evaluate(c fiber.Ctx) error {
 	if err := c.Bind().Body(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "corpo da requisicao invalido",
+		})
+	}
+
+	// Valida antes do motor: entrada incompleta não pode virar "conforme".
+	var verr *model.ValidationError
+	if errors.As(req.Validate(), &verr) {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error":   "requisicao invalida",
+			"details": verr.Fields,
 		})
 	}
 

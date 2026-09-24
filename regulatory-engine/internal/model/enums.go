@@ -28,9 +28,27 @@ const (
 	ProductPersonalLoan ProductType = "personal_loan"
 )
 
+// IsValid informa se o tipo de produto é um dos valores conhecidos.
+func (t ProductType) IsValid() bool {
+	switch t {
+	case ProductPersonalLoan:
+		return true
+	}
+	return false
+}
+
 // OperationMethod descreve como a operação é realizada.
 type OperationMethod string
 
 const (
 	MethodInternationalTransfer OperationMethod = "international_transfer"
 )
+
+// IsValid informa se o método de operação é um dos valores conhecidos.
+func (m OperationMethod) IsValid() bool {
+	switch m {
+	case MethodInternationalTransfer:
+		return true
+	}
+	return false
+}

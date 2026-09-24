@@ -92,6 +92,27 @@ func TestEvaluate_Returns400OnInvalidBody(t *testing.T) {
 	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
 }
 
+func TestEvaluate_Returns400WithDetailsOnInvalidRequest(t *testing.T) {
+	store := newFakeStore()
+	app := newTestApp(store)
+
+	req := httptest.NewRequest("POST", "/api/v1/evaluate", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, fiber.StatusBadRequest, resp.StatusCode)
+
+	var body struct {
+		Error   string             `json:"error"`
+		Details []model.FieldError `json:"details"`
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	require.NoError(t, json.Unmarshal(raw, &body))
+	assert.NotEmpty(t, body.Details, "a resposta deve listar os campos invalidos")
+	assert.Empty(t, store.saved, "requisicao invalida nao pode ser persistida")
+}
+
 func TestGetEvaluation_Returns404WhenMissing(t *testing.T) {
 	app := newTestApp(newFakeStore())
 
