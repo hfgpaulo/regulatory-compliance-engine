@@ -162,10 +162,7 @@ Motor funcional com testes automatizados e CI verde, construído em **blocos inc
 - **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
 - **Identidade de contraparte (`parties`)** — promover a contraparte a entidade própria, identificada por documento (CPF/CNPJ), com *entity resolution* para screening.
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
-- **Observabilidade completa** — Prometheus + Grafana + Loki.
 - **Regras versionadas em banco** — histórico de vigência das normas.
-- **Screening contra fonte real** — PEP/sancionados consultados em fontes oficiais, não em lista mock.
-- **Autenticação e auditoria** — JWT e trilha de auditoria de acesso.
 - **Graceful shutdown** — tratar `SIGTERM` e concluir requisições em andamento antes de encerrar.
 - **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
 

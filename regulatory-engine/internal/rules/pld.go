@@ -67,8 +67,9 @@ func (r *PLDThresholdRule) Evaluate(req model.EvaluationRequest) (*engine.Outcom
 // PLDScreeningRule sinaliza a operação quando a contraparte é PEP (pessoa
 // exposta politicamente) ou consta em uma lista de sancionados.
 //
-// A lista mock vem da parametrização; um screening real consultaria fontes
-// externas (OFAC, listas do Bacen/COAF) — deixado como evolução no roadmap.
+// A lista chega por injeção (hoje, uma lista mock da parametrização). Trocar
+// a fonte por uma lista oficial (ex.: OFAC, COAF) muda só quem monta a regra,
+// não a regra em si.
 type PLDScreeningRule struct {
 	sanctioned map[string]bool
 }

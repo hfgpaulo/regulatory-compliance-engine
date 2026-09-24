@@ -81,10 +81,6 @@ GET  /api/v1/evaluations/{id}
   → recupera uma avaliação pelo id
 GET  /api/v1/health
   → healthcheck
-GET  /api/v1/rules
-  → lista as regras carregadas (bloco futuro)
-GET  /swagger/*
-  → documentação OpenAPI (bloco futuro)
 ```
 
 **Exemplo de requisição** (`POST /api/v1/evaluate`):
@@ -203,6 +199,12 @@ Banco `regulatory`. A avaliação é gravada como **um único documento embedded
 
 **Índices.** `created_at_desc` (`{ created_at: -1 }`) atende a listagem das avaliações mais recentes: sem ele, a consulta faria *collection scan* com ordenação em memória. O índice é declarado pelo próprio repositório (`EnsureIndexes`) e criado no boot, com fail-fast — quem consulta declara o índice de que precisa, e ele existe em qualquer ambiente, não só no compose. Como o `createIndexes` do MongoDB é idempotente, rodar a cada boot não tem custo. Em coleções grandes, a criação migraria para um passo de migração separado, para não alongar o boot.
 
+**Identificador (`_id` como string).** O id é gerado como ObjectId (`primitive.NewObjectID()`), mas gravado como a sua representação hexadecimal em **string**, e não com o tipo nativo `ObjectId`. É um *tradeoff* consciente:
+
+- **Ganho:** o domínio fica livre de tipos do driver (`model.Evaluation.ID` é `string`, sem importar `primitive`), o JSON expõe o id sem serialização customizada, e o handler repassa o parâmetro da rota direto à consulta — um id malformado simplesmente não encontra nada (`404`), sem etapa de conversão.
+- **Custo:** a chave ocupa 24 bytes em vez de 12, o que aumenta o índice `_id`, e perde-se o timestamp embutido do `ObjectId` (`getTimestamp()`). O segundo custo é neutralizado pelo campo explícito `created_at`; a ordem cronológica também se preserva, porque o hexadecimal de tamanho fixo ordena igual ao `ObjectId`.
+- **Reversão:** migrar para o tipo nativo depois exigiria reescrever o `_id` de todos os documentos — por isso a decisão fica registrada aqui. No volume atual, a simplicidade compensa o custo de armazenamento.
+
 Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo), preservando a precisão e permitindo consultas e agregações por valor.
 
 **Decisão de modelagem (embedded vs. referência).** `request` e `report` têm relação 1:1, nascem juntos e são sempre lidos juntos — portanto ficam **embutidos** no mesmo documento (separá-los em duas coleções seria um anti-padrão: duas escritas não-atômicas e um *join* na leitura, sem benefício). Como a avaliação é um **registro de auditoria**, o documento é tratado como um **retrato imutável** do que foi avaliado e do veredito daquele momento. Promover a **contraparte** a entidade própria (coleção `parties`) só se justificaria com uma **identidade estável** — um documento (CPF/CNPJ), não o nome — e fica no roadmap.
@@ -251,9 +253,6 @@ Limitação conhecida: isso **não** cancela a query quando o cliente desconecta
 1. **Gateway PHP + Slim**: serviço que representa o sistema legado e chama o motor Go (integração legado ↔ novo).
 2. **Coleção `parties` (identidade de contraparte)**: promover a contraparte a entidade de primeira classe, identificada por **documento (CPF/CNPJ/tax id)** — não pelo nome — com índice único, e screening por documento. Envolve *entity resolution* (fuzzy matching contra listas de sanção), um problema à parte.
 3. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
-4. Observabilidade completa: Prometheus + Grafana + Loki.
-5. Regras em banco com versionamento (histórico de vigência das normas).
-6. Screening PEP/sancionados contra fonte real.
-7. Autenticação (JWT) e trilha de auditoria.
-8. **Graceful shutdown**: tratar `SIGTERM` (enviado por `docker stop` e orquestradores) para parar de aceitar conexões, concluir as requisições em andamento e fechar o MongoDB — hoje o processo encerra de imediato.
-9. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.
+4. Regras em banco com versionamento (histórico de vigência das normas).
+5. **Graceful shutdown**: tratar `SIGTERM` (enviado por `docker stop` e orquestradores) para parar de aceitar conexões, concluir as requisições em andamento e fechar o MongoDB — hoje o processo encerra de imediato.
+6. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.
