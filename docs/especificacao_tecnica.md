@@ -125,9 +125,9 @@ GET  /swagger/*
 |---|---|
 | `product.type` | valor conhecido (`personal_loan`) |
 | `product.origin` | código de país ISO 3166-1 alpha-2 (ex.: `US`) |
-| `product.origin_currency` | código de moeda ISO 4217 (ex.: `USD`) |
+| `product.origin_currency` | código de moeda ISO 4217 (ex.: `USD`); informativo |
 | `operation.amount` | maior que zero, no máximo 2 casas decimais |
-| `operation.currency` | código de moeda ISO 4217 (ex.: `USD`) |
+| `operation.currency` | código de moeda ISO 4217 e, por ora, somente `USD` |
 | `operation.method` | valor conhecido (`international_transfer`) |
 | `operation.counterparty.name` | obrigatório (sem ele o screening fica cego) |
 
@@ -144,6 +144,13 @@ Todos os campos inválidos são reportados de uma vez, com `400 Bad Request`, e 
 ```
 
 Decisões: a validação fica no domínio (não em tags de biblioteca) para manter a lista de valores válidos junto das constantes e testável sem HTTP; a origem é obrigatória porque a avaliação é um registro de auditoria, e tornar um campo obrigatório depois quebraria clientes, enquanto afrouxar não. Para os códigos de país e moeda valida-se só o formato, sem consultar a lista oficial.
+
+**Moedas.** Os dois campos de moeda têm papéis diferentes:
+
+- `operation.currency` é a moeda do `amount` e **entra no cálculo**: IOF e teto do COAF convertem o valor para BRL. Como a parametrização só tem o câmbio `usd_brl`, apenas `USD` é aceito; qualquer outra moeda retorna `400` com `"moeda nao suportada (aceita: USD)"`. Recusar é preferível a calcular errado — antes desta restrição, `"BRL"` era tratado como dólar sem aviso.
+- `product.origin_currency` **descreve o produto de origem** e não entra em nenhum cálculo. É obrigatório (registro de auditoria completo) e tem o formato validado, mas não é restrito a `USD`: restringir um campo que não afeta o resultado rejeitaria requisições sem motivo técnico. Passa a ter validação semântica quando alguma regra depender dele.
+
+Evolução prevista: trocar `fx.usd_brl` por uma tabela de câmbio por moeda e extrair um conversor único usado pelas regras; a lista de moedas aceitas passa então a derivar da parametrização.
 
 ## 6. Estrutura de pastas (monorepo)
 

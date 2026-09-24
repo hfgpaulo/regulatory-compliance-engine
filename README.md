@@ -110,7 +110,7 @@ Resposta (`201 Created`) — a avaliação persistida (`id`, `created_at`, `requ
 }
 ```
 
-Requisição inválida (campo ausente, valor não positivo ou com mais de 2 casas, tipo/método desconhecido, código de país/moeda fora do padrão ISO) retorna `400` com todos os campos inválidos, e nada é persistido:
+Requisição inválida (campo ausente, valor não positivo ou com mais de 2 casas, tipo/método desconhecido, código de país/moeda fora do padrão ISO, moeda da operação diferente de `USD`) retorna `400` com todos os campos inválidos, e nada é persistido:
 
 ```json
 {
