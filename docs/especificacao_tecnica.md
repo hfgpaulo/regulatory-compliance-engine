@@ -40,6 +40,11 @@ Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzi
 **Validação da parametrização (fail-fast).** Por ser editável sem recompilar, a parametrização também pode ser editada *errada*. Por isso `rules.Load()` valida o arquivo logo após interpretá-lo (`Parameters.Validate()`) e, se algo estiver incoerente com o que as regras assumem, o serviço **não sobe** — mesmo princípio já usado na conexão com o MongoDB. Os problemas são acumulados (`errors.Join`) para o erro de boot listar tudo o que precisa ser corrigido de uma vez. Checagens atuais:
 
 - `pld.reporting_threshold.currency` deve ser `BRL`: o teto é comparado com o valor da operação já convertido para reais; outra moeda seria tratada como BRL sem aviso.
+- `fx.usd_brl` deve ser maior que 0: câmbio zero zeraria toda conversão (IOF de R$ 0,00 e nenhuma operação atingindo o teto).
+- `pld.reporting_threshold.amount` deve ser maior que 0.
+- `iof.international_transfer.rate` deve ser maior que 0 e menor que 1 (100%).
+
+O critério "maior que zero" tem um segundo papel: no JSON, **chave ausente vira zero** (o `decimal` não distingue "não veio" de "veio 0"), então uma chave esquecida ou digitada errado também é barrada. Por isso a alíquota zero não é aceita mesmo existindo operações com IOF 0% na norma: aceitar zero aceitaria esquecimento, e a regra emitiria `adaptation_required` com IOF de R$ 0,00 — veredito incoerente. Alíquota zero real se representa desligando a regra. O limite superior (`< 1`) é só sanidade; valores plausíveis porém errados (ex.: `0.38` no lugar de `0.0038`) exigiriam um teto de domínio, deixado de fora de propósito.
 
 Um teste carrega o `config/rules.json` versionado, de modo que uma parametrização inválida quebra o CI antes de chegar ao boot.
 
