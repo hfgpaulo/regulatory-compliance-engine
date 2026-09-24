@@ -9,7 +9,8 @@ import (
 
 // listEvaluations devolve as avaliações mais recentes.
 func (s *Server) listEvaluations(c fiber.Ctx) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Mesma derivação do evaluate: propaga o contexto da requisição.
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
 	defer cancel()
 
 	evaluations, err := s.store.List(ctx, 50)
@@ -25,7 +26,8 @@ func (s *Server) listEvaluations(c fiber.Ctx) error {
 func (s *Server) getEvaluation(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Mesma derivação do evaluate: propaga o contexto da requisição.
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
 	defer cancel()
 
 	evaluation, err := s.store.FindByID(ctx, id)

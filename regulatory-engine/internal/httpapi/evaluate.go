@@ -38,7 +38,10 @@ func (s *Server) evaluate(c fiber.Ctx) error {
 
 	evaluation := model.Evaluation{Request: req, Report: report}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Deriva do contexto da requisição para propagar o que os middlewares
+	// anexarem (request-id, tracing). Não cancela se o cliente desconectar:
+	// o fasthttp não sinaliza desconexão durante o handler.
+	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
 	defer cancel()
 	if err := s.store.Save(ctx, &evaluation); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

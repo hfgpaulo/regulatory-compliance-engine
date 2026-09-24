@@ -18,15 +18,18 @@ import (
 
 // fakeStore implementa EvaluationStore em memória: os handlers dependem da
 // interface, então o teste roda sem MongoDB. Save simula o repositório real
-// atribuindo um id quando ele vem vazio.
+// atribuindo um id quando ele vem vazio. lastCtx guarda o contexto recebido
+// para verificar a propagação a partir da requisição.
 type fakeStore struct {
 	saved   map[string]*model.Evaluation
 	saveErr error
+	lastCtx context.Context
 }
 
 func newFakeStore() *fakeStore { return &fakeStore{saved: map[string]*model.Evaluation{}} }
 
-func (f *fakeStore) Save(_ context.Context, eval *model.Evaluation) error {
+func (f *fakeStore) Save(ctx context.Context, eval *model.Evaluation) error {
+	f.lastCtx = ctx
 	if f.saveErr != nil {
 		return f.saveErr
 	}
@@ -37,11 +40,13 @@ func (f *fakeStore) Save(_ context.Context, eval *model.Evaluation) error {
 	return nil
 }
 
-func (f *fakeStore) FindByID(_ context.Context, id string) (*model.Evaluation, error) {
+func (f *fakeStore) FindByID(ctx context.Context, id string) (*model.Evaluation, error) {
+	f.lastCtx = ctx
 	return f.saved[id], nil // nil quando não existe: o handler traduz para 404
 }
 
-func (f *fakeStore) List(_ context.Context, _ int64) ([]model.Evaluation, error) {
+func (f *fakeStore) List(ctx context.Context, _ int64) ([]model.Evaluation, error) {
+	f.lastCtx = ctx
 	out := make([]model.Evaluation, 0, len(f.saved))
 	for _, e := range f.saved {
 		out = append(out, *e)
@@ -111,6 +116,52 @@ func TestEvaluate_Returns400WithDetailsOnInvalidRequest(t *testing.T) {
 	require.NoError(t, json.Unmarshal(raw, &body))
 	assert.NotEmpty(t, body.Details, "a resposta deve listar os campos invalidos")
 	assert.Empty(t, store.saved, "requisicao invalida nao pode ser persistida")
+}
+
+type ctxMarkerKey struct{}
+
+// TestHandlers_PropagateRequestContext garante que o contexto entregue ao
+// store deriva do contexto da requisição (o que um middleware anexar chega
+// ao banco) e carrega o timeout aplicado pelo handler.
+func TestHandlers_PropagateRequestContext(t *testing.T) {
+	validBody := `{
+		"product": {"type": "personal_loan", "origin": "US", "origin_currency": "USD"},
+		"operation": {"amount": "1000.00", "currency": "USD", "method": "international_transfer",
+			"counterparty": {"name": "John Doe", "pep": false}}
+	}`
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{"evaluate", "POST", "/api/v1/evaluate", validBody},
+		{"listEvaluations", "GET", "/api/v1/evaluations", ""},
+		{"getEvaluation", "GET", "/api/v1/evaluations/any-id", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := newFakeStore()
+			app := fiber.New()
+			app.Use(func(c fiber.Ctx) error {
+				c.SetContext(context.WithValue(c.Context(), ctxMarkerKey{}, "marker"))
+				return c.Next()
+			})
+			NewServer(engine.New(), store).Register(app)
+
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			_, err := app.Test(req)
+			require.NoError(t, err)
+
+			require.NotNil(t, store.lastCtx, "o store deve ter sido chamado")
+			assert.Equal(t, "marker", store.lastCtx.Value(ctxMarkerKey{}))
+			_, hasDeadline := store.lastCtx.Deadline()
+			assert.True(t, hasDeadline, "o handler deve aplicar timeout")
+		})
+	}
 }
 
 func TestGetEvaluation_Returns404WhenMissing(t *testing.T) {
