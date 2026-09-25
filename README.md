@@ -161,7 +161,6 @@ Motor funcional com testes automatizados e CI verde, construído em **blocos inc
 ## Roadmap
 
 - **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
-- **Identidade de contraparte (`parties`)** — promover a contraparte a entidade própria, identificada por documento (CPF/CNPJ), com *entity resolution* para screening.
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
 - **Regras versionadas em banco** — histórico de vigência das normas.
 - **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
