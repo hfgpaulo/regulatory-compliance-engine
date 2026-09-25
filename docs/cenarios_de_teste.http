@@ -1,0 +1,178 @@
+# Cenários de teste manuais da API do regulatory-engine.
+# Uso: extensão REST Client do VS Code (humao.rest-client) — clique em
+# "Send Request" acima de cada requisição. Descrição e resultado esperado de
+# cada cenário: docs/cenarios_de_teste.md. Os cenários C01–C10 são os mesmos
+# do teste automatizado internal/rules/acceptance_test.go.
+#
+# Pré-requisito: API no ar (make up ou make dev).
+
+@baseUrl = http://localhost:3000/api/v1
+@contentType = application/json
+
+### H01 — liveness (esperado: 200, status "ok")
+GET {{baseUrl}}/health
+
+### H02 — readiness (esperado: 200, status "ready"; 503 se o MongoDB estiver fora)
+GET {{baseUrl}}/ready
+
+### C01 — transferência simples, contraparte sem risco (esperado: 201, IOF 19.00)
+# @name c01
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### C02 — arredondamento do IOF (esperado: 201, IOF 23.46)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1234.57", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### C03 — logo abaixo do teto do COAF (esperado: 201, só IOF 190.00)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "9999.99", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### C04 — exatamente no teto do COAF (esperado: 201, IOF 190.00 + PLD reportável 50000.00)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "10000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### C05 — acima do teto do COAF (esperado: 201, IOF 1425.00 + PLD reportável 375000.00)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "75000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### C06 — contraparte PEP (esperado: 201, IOF 19.00 + screening PEP)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": true } }
+}
+
+### C07 — contraparte sancionada (esperado: 201, IOF 19.00 + screening sancionado)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "Ivan Petrov", "pep": false } }
+}
+
+### C08 — sancionada com caixa e espaços diferentes (esperado: igual ao C07)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "  ivan PETROV ", "pep": false } }
+}
+
+### C09 — contraparte PEP e sancionada (esperado: 201, IOF 19.00 + screening com os dois motivos)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "Mara Costa", "pep": true } }
+}
+
+### C10 — todos os domínios juntos (esperado: 201, IOF 1425.00 + PLD 375000.00 + screening)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "75000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "Mara Costa", "pep": true } }
+}
+
+### V01 — corpo vazio (esperado: 400, 7 campos em details)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{}
+
+### V02 — JSON malformado (esperado: 400, "corpo da requisicao invalido")
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{ nao e json
+
+### V03 — moeda não suportada (esperado: 400, operation.currency "moeda nao suportada")
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "BRL", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### V04 — valor com mais de 2 casas (esperado: 400, operation.amount)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "1000.005", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### V05 — valor zero e método desconhecido (esperado: 400, operation.amount e operation.method)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "0", "currency": "USD", "method": "pix",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### V06 — origem fora do padrão ISO (esperado: 400, product.origin)
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "usa", "origin_currency": "USD" },
+  "operation": { "amount": "1000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### P01 — lista as avaliações mais recentes (esperado: 200, a mais nova primeiro)
+GET {{baseUrl}}/evaluations
+
+### P02 — busca a avaliação criada no C01 (rode o C01 antes; esperado: 200)
+GET {{baseUrl}}/evaluations/{{c01.response.body.$.id}}
+
+### P03 — id inexistente (esperado: 404, "avaliacao nao encontrada")
+GET {{baseUrl}}/evaluations/nao-existe

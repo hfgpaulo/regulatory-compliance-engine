@@ -66,6 +66,8 @@ go test ./...
 
 A mesma verificação (`gofmt`, `build`, `vet`, `test`) roda no CI a cada push/PR.
 
+Para testar a API na prática, há um catálogo de cenários com entrada e resultado esperado em [`docs/cenarios_de_teste.md`](docs/cenarios_de_teste.md), prontos para executar pelo VS Code (REST Client) em [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http). Os cenários regulatórios são os mesmos do teste automatizado de aceitação.
+
 ## Endpoints
 
 | Método | Rota | Descrição |
