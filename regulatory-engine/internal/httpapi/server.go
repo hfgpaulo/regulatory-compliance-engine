@@ -30,17 +30,18 @@ type PingerFunc func(ctx context.Context) error
 // Ping chama a própria função.
 func (f PingerFunc) Ping(ctx context.Context) error { return f(ctx) }
 
-// Server agrupa as dependências dos handlers HTTP (motor de regras, store e
-// verificação do banco para o readiness).
+// Server agrupa as dependências dos handlers HTTP (motor de regras, versão da
+// parametrização que o alimenta, store e verificação do banco para o readiness).
 type Server struct {
-	engine *engine.Engine
-	store  EvaluationStore
-	db     Pinger
+	engine       *engine.Engine
+	rulesVersion string
+	store        EvaluationStore
+	db           Pinger
 }
 
 // NewServer cria o servidor HTTP com suas dependências.
-func NewServer(eng *engine.Engine, store EvaluationStore, db Pinger) *Server {
-	return &Server{engine: eng, store: store, db: db}
+func NewServer(eng *engine.Engine, rulesVersion string, store EvaluationStore, db Pinger) *Server {
+	return &Server{engine: eng, rulesVersion: rulesVersion, store: store, db: db}
 }
 
 // Register aplica o middleware de log e registra as rotas da API.

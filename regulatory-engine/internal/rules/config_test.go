@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,6 +82,23 @@ func TestLoad_MissingKeysAreRejected(t *testing.T) {
 	for _, field := range []string{"iof.international_transfer.rate", "fx.usd_brl", "pld.reporting_threshold.amount"} {
 		assert.Contains(t, err.Error(), field, "todos os problemas devem ser reportados de uma vez")
 	}
+}
+
+// TestLoad_VersionIsSHA256OfFileBytes garante que a versão é o hash dos
+// bytes do arquivo (conferível com sha256sum) e que muda quando o arquivo muda.
+func TestLoad_VersionIsSHA256OfFileBytes(t *testing.T) {
+	content := rulesJSON(validFields())
+	params, err := Load(writeRules(t, content))
+	require.NoError(t, err)
+
+	sum := sha256.Sum256([]byte(content))
+	assert.Equal(t, "sha256:"+hex.EncodeToString(sum[:]), params.Version)
+
+	changed := validFields()
+	changed.rate = "0.0050"
+	other, err := Load(writeRules(t, rulesJSON(changed)))
+	require.NoError(t, err)
+	assert.NotEqual(t, params.Version, other.Version, "arquivo diferente deve gerar versao diferente")
 }
 
 // TestLoad_ShippedRulesFile garante que o rules.json versionado continua

@@ -1,6 +1,8 @@
 package rules
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +20,10 @@ type Parameters struct {
 	IOF IOFParams `json:"iof"`
 	FX  FXParams  `json:"fx"`
 	PLD PLDParams `json:"pld"`
+
+	// Version identifica o arquivo carregado: "sha256:" + hash dos bytes.
+	// Não vem do JSON; é calculado no Load e conferível com sha256sum.
+	Version string `json:"-"`
 }
 
 // PLDParams agrupa a parametrização de Prevenção à Lavagem de Dinheiro.
@@ -61,6 +67,9 @@ func Load(path string) (Parameters, error) {
 	if err := params.Validate(); err != nil {
 		return Parameters{}, fmt.Errorf("parametrizacao invalida em %s: %w", path, err)
 	}
+
+	sum := sha256.Sum256(data)
+	params.Version = "sha256:" + hex.EncodeToString(sum[:])
 	return params, nil
 }
 

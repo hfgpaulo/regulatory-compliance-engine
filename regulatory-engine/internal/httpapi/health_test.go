@@ -26,7 +26,7 @@ func TestReady(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			app := fiber.New()
-			NewServer(engine.New(), newFakeStore(), tc.db).Register(app)
+			NewServer(engine.New(), testRulesVersion, newFakeStore(), tc.db).Register(app)
 
 			resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/ready", nil))
 			require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestReady(t *testing.T) {
 func TestHealth_DoesNotDependOnDatabase(t *testing.T) {
 	app := fiber.New()
 	dbDown := PingerFunc(func(context.Context) error { return errors.New("sem conexao") })
-	NewServer(engine.New(), newFakeStore(), dbDown).Register(app)
+	NewServer(engine.New(), testRulesVersion, newFakeStore(), dbDown).Register(app)
 
 	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/health", nil))
 	require.NoError(t, err)

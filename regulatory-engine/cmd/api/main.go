@@ -61,7 +61,7 @@ func main() {
 		rules.NewPLDThresholdRule(params.PLD.ReportingThreshold.Amount, params.FX.USDBRL),
 		rules.NewPLDScreeningRule(params.PLD.SanctionedNames),
 	)
-	slog.Info("motor de regras carregado", "path", cfg.RulesPath)
+	slog.Info("motor de regras carregado", "path", cfg.RulesPath, "rules_version", params.Version)
 
 	// Repositório de avaliações (persistência no MongoDB).
 	evaluationRepo := repository.NewEvaluationRepository(db)
@@ -79,11 +79,11 @@ func main() {
 		AppName: "regulatory-engine",
 	})
 
-	// Injeta o motor, o repositório e o ping do banco (readiness) no servidor.
+	// Injeta o motor, a versão das regras, o repositório e o ping do banco (readiness) no servidor.
 	pingDB := httpapi.PingerFunc(func(ctx context.Context) error {
 		return client.Ping(ctx, readpref.Primary())
 	})
-	server := httpapi.NewServer(eng, evaluationRepo, pingDB)
+	server := httpapi.NewServer(eng, params.Version, evaluationRepo, pingDB)
 	server.Register(app)
 
 	// SIGTERM (docker stop, orquestradores) e SIGINT (Ctrl+C) disparam o

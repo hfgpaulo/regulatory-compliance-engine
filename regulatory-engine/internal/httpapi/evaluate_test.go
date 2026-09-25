@@ -57,12 +57,15 @@ func (f *fakeStore) List(ctx context.Context, _ int64) ([]model.Evaluation, erro
 // dbUp simula um banco acessível para o readiness.
 var dbUp = PingerFunc(func(context.Context) error { return nil })
 
+// testRulesVersion simula a versão da parametrização injetada no servidor.
+const testRulesVersion = "sha256:test"
+
 // newTestApp monta um app Fiber real com o store falso, para exercitar as
 // rotas de ponta a ponta via app.Test (sem abrir porta de rede).
 func newTestApp(store EvaluationStore) *fiber.App {
 	eng := engine.New() // sem regras: operação sempre conforme, basta para o teste HTTP
 	app := fiber.New()
-	NewServer(eng, store, dbUp).Register(app)
+	NewServer(eng, testRulesVersion, store, dbUp).Register(app)
 	return app
 }
 
@@ -86,7 +89,9 @@ func TestEvaluate_Returns201AndPersists(t *testing.T) {
 	raw, _ := io.ReadAll(resp.Body)
 	require.NoError(t, json.Unmarshal(raw, &created))
 	assert.NotEmpty(t, created.ID, "o recurso criado deve vir com id")
-	assert.Len(t, store.saved, 1, "a avaliacao deve ter sido persistida")
+	assert.Equal(t, testRulesVersion, created.RulesVersion, "a resposta deve informar a versao das regras")
+	require.Len(t, store.saved, 1, "a avaliacao deve ter sido persistida")
+	assert.Equal(t, testRulesVersion, store.saved[created.ID].RulesVersion, "a versao das regras deve ser persistida")
 }
 
 func TestEvaluate_Returns400OnInvalidBody(t *testing.T) {
@@ -152,7 +157,7 @@ func TestHandlers_PropagateRequestContext(t *testing.T) {
 				c.SetContext(context.WithValue(c.Context(), ctxMarkerKey{}, "marker"))
 				return c.Next()
 			})
-			NewServer(engine.New(), store, dbUp).Register(app)
+			NewServer(engine.New(), testRulesVersion, store, dbUp).Register(app)
 
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			req.Header.Set("Content-Type", "application/json")

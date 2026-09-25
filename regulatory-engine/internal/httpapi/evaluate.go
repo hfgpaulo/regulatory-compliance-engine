@@ -34,7 +34,7 @@ func (s *Server) evaluate(c fiber.Ctx) error {
 		})
 	}
 
-	evaluation := model.Evaluation{Request: req, Report: report}
+	evaluation := model.Evaluation{RulesVersion: s.rulesVersion, Request: req, Report: report}
 
 	ctx, cancel := newRequestContext(c)
 	defer cancel()
