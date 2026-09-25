@@ -88,12 +88,13 @@ curl -X POST http://localhost:3000/api/v1/evaluate \
       }'
 ```
 
-Resposta (`201 Created`) — a avaliação persistida (`id`, `created_at`, `request` e o `report`):
+Resposta (`201 Created`) — a avaliação persistida (`id`, `created_at`, `rules_version` — hash da parametrização usada —, `request` e o `report`):
 
 ```json
 {
   "id": "665f...c3",
   "created_at": "2026-09-23T16:00:00Z",
+  "rules_version": "sha256:cab75867...2dba4f",
   "request": { "product": { "...": "..." }, "operation": { "...": "..." } },
   "report": {
     "compliant": false,

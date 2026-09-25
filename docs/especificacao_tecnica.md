@@ -74,7 +74,7 @@ Cada item indica se já está **implementado** (com o código da regra) ou **pla
 ```
 POST /api/v1/evaluate
   → avalia um produto/operação, PERSISTE e retorna a avaliação criada (201)
-    { id, created_at, request, report }
+    { id, created_at, rules_version, request, report }
 GET  /api/v1/evaluations
   → lista as avaliações mais recentes
 GET  /api/v1/evaluations/{id}
@@ -197,7 +197,13 @@ Os índices do MongoDB são criados pelo próprio motor no boot (ver seção 7),
 
 Banco `regulatory`. A avaliação é gravada como **um único documento embedded** na coleção `evaluations` — o modelo idiomático de MongoDB: uma escrita, e uma leitura traz o quadro completo, sem "join".
 
-- **`evaluations`**: `{ _id, created_at, request { ... }, report { ... } }` — a submissão original e o veredito produzido, juntos no mesmo documento.
+- **`evaluations`**: `{ _id, created_at, rules_version, request { ... }, report { ... } }` — a submissão original e o veredito produzido, juntos no mesmo documento, com a versão da parametrização que o produziu.
+
+**Versão da parametrização (`rules_version`).** Um registro de auditoria precisa responder não só *o que* foi decidido, mas *sob quais regras*: se a alíquota de IOF mudar no `rules.json`, um `calculated_amount` antigo só continua explicável se o registro disser qual arquivo estava em vigor. Por isso cada avaliação grava `rules_version = "sha256:" + hash dos bytes do rules.json`, calculado no `rules.Load` e também registrado no log de boot.
+
+- **Por que o hash dos bytes:** qualquer um confere com ferramenta padrão (`sha256sum config/rules.json`), sem depender do código; e o hash não "esquece" de mudar, ao contrário de um número de versão escrito à mão. A normalização de fim de linha para LF (`.gitattributes`) garante o mesmo hash no Windows, no Linux e na imagem Docker.
+- **Por que fora do `report`:** é proveniência do registro (como `created_at`), não resultado de regra; o motor continua sem conhecer a versão, que é injetada no servidor.
+- **Avaliações anteriores** a este campo ficam sem ele: não há como saber retroativamente qual arquivo estava em uso, então não há migração.
 
 **Índices.** `created_at_desc` (`{ created_at: -1 }`) atende a listagem das avaliações mais recentes: sem ele, a consulta faria *collection scan* com ordenação em memória. O índice é declarado pelo próprio repositório (`EnsureIndexes`) e criado no boot, com fail-fast — quem consulta declara o índice de que precisa, e ele existe em qualquer ambiente, não só no compose. Como o `createIndexes` do MongoDB é idempotente, rodar a cada boot não tem custo. Em coleções grandes, a criação migraria para um passo de migração separado, para não alongar o boot.
 
