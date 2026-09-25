@@ -54,12 +54,15 @@ func (f *fakeStore) List(ctx context.Context, _ int64) ([]model.Evaluation, erro
 	return out, nil
 }
 
+// dbUp simula um banco acessível para o readiness.
+var dbUp = PingerFunc(func(context.Context) error { return nil })
+
 // newTestApp monta um app Fiber real com o store falso, para exercitar as
 // rotas de ponta a ponta via app.Test (sem abrir porta de rede).
 func newTestApp(store EvaluationStore) *fiber.App {
 	eng := engine.New() // sem regras: operação sempre conforme, basta para o teste HTTP
 	app := fiber.New()
-	NewServer(eng, store).Register(app)
+	NewServer(eng, store, dbUp).Register(app)
 	return app
 }
 
@@ -149,7 +152,7 @@ func TestHandlers_PropagateRequestContext(t *testing.T) {
 				c.SetContext(context.WithValue(c.Context(), ctxMarkerKey{}, "marker"))
 				return c.Next()
 			})
-			NewServer(engine.New(), store).Register(app)
+			NewServer(engine.New(), store, dbUp).Register(app)
 
 			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
 			req.Header.Set("Content-Type", "application/json")

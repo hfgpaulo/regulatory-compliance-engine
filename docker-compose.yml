@@ -34,6 +34,17 @@ services:
       # O motor é fail-fast sem banco: só sobe depois do Mongo ficar healthy.
       mongodb:
         condition: service_healthy
+    healthcheck:
+      # Subcomando do próprio binário (a imagem distroless não tem curl);
+      # consulta o /ready, que pinga o Mongo.
+      test: ["CMD", "/app/regulatory-engine", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Janela entre SIGTERM e SIGKILL. Pior caso do motor: 10s esperando
+    # requisições (shutdownTimeout) + 5s desconectando o Mongo = 15s; 20s dá margem.
+    stop_grace_period: 20s
 
 volumes:
   mongo_data:
