@@ -80,7 +80,9 @@ GET  /api/v1/evaluations
 GET  /api/v1/evaluations/{id}
   → recupera uma avaliação pelo id
 GET  /api/v1/health
-  → healthcheck
+  → liveness: processo no ar (não consulta o banco)
+GET  /api/v1/ready
+  → readiness: 200 se o MongoDB responde ao ping, 503 se não
 ```
 
 **Exemplo de requisição** (`POST /api/v1/evaluate`):
@@ -219,7 +221,7 @@ A suíte usa `testify` e cobre as três camadas do motor de forma independente:
 
 - **Testes unitários (table-driven).** As regras de negócio — cálculo de IOF, teto de comunicação ao COAF, screening de PEP/sancionados —, a validação de entrada e o tipo monetário são testados com tabelas de casos (entrada esperada vs. saída), o padrão idiomático em Go. Cada regra é verificada isoladamente: quando se aplica, o valor calculado, e quando **não** se aplica (retorno nulo).
 - **Teste de agregação do motor com dublê.** O avaliador (`engine`) é testado contra uma **regra falsa** (`fakeRule`) controlada pelo teste, não contra as regras reais. Assim se verifica apenas a responsabilidade do motor — agregar resultados, ignorar regras que não se aplicam, decidir conformidade e propagar erro — sem acoplamento ao comportamento de IOF ou PLD.
-- **Teste de handler HTTP sem banco.** Os handlers dependem da **interface** `EvaluationStore`, não do repositório concreto. Nos testes, injeta-se um **store falso em memória** (`fakeStore`) e exercitam-se as rotas de ponta a ponta com `app.Test` (sem abrir porta de rede nem exigir MongoDB): `POST /evaluate` retornando `201` e persistindo, corpo malformado ou requisição incompleta retornando `400` (com a lista de campos inválidos e sem persistir), e busca inexistente retornando `404`. Um teste adicional verifica, nas três rotas que acessam o banco, que o contexto recebido pelo store **deriva do contexto da requisição** (um valor anexado por *middleware* chega ao store) e carrega o timeout do handler.
+- **Teste de handler HTTP sem banco.** Os handlers dependem da **interface** `EvaluationStore`, não do repositório concreto. Nos testes, injeta-se um **store falso em memória** (`fakeStore`) e exercitam-se as rotas de ponta a ponta com `app.Test` (sem abrir porta de rede nem exigir MongoDB): `POST /evaluate` retornando `201` e persistindo, corpo malformado ou requisição incompleta retornando `400` (com a lista de campos inválidos e sem persistir), e busca inexistente retornando `404`. Um teste adicional verifica, nas três rotas que acessam o banco, que o contexto recebido pelo store **deriva do contexto da requisição** (um valor anexado por *middleware* chega ao store) e carrega o timeout do handler. O readiness é testado com um `Pinger` falso (banco acessível → `200`, indisponível → `503`), e um teste garante que o liveness continua `200` com o banco fora. O subcomando `healthcheck` é testado contra servidores HTTP de teste (`httptest`).
 
 O ponto de projeto que torna isso possível é a **injeção de dependência** adotada nos blocos anteriores: como o servidor recebe o motor e o store por interface, ambos podem ser substituídos por dublês nos testes. Testes rápidos, determinísticos e que rodam em qualquer máquina limpa — inclusive no CI, sem infraestrutura.
 
@@ -244,6 +246,20 @@ Os dois serviços emitem **logs estruturados em JSON** (via `slog` no motor Go).
 
 Limitação conhecida: isso **não** cancela a query quando o cliente desconecta. O Fiber roda sobre o fasthttp, que por desempenho não sinaliza desconexão durante o handler (o `Done()` da requisição só fecha no desligamento do servidor). Cancelamento por desconexão exigiria um servidor baseado em `net/http`, sem demanda que justifique hoje; o timeout de 5s é o limite efetivo.
 
+**Liveness e readiness.** São duas perguntas diferentes, com dois endpoints:
+
+- `GET /api/v1/health` (**liveness**) responde se o processo está vivo e **não consulta o banco**. Quem reage a uma falha de liveness reinicia o processo — e reiniciar não conserta um banco fora do ar, só geraria um ciclo de reinícios.
+- `GET /api/v1/ready` (**readiness**) pinga o MongoDB (prazo de 2s) e responde `503` se ele não responder. Falhar aqui tira o serviço do tráfego sem reiniciá-lo.
+
+No compose, o motor tem `healthcheck` baseado no readiness — é o que permitirá ao gateway declarar `depends_on: condition: service_healthy`. Como a imagem distroless não tem `curl` nem `wget`, o próprio binário oferece o subcomando `regulatory-engine healthcheck`, que consulta o `/ready` local e sai com `0` ou `1`.
+
+**Encerramento gracioso.** Ao receber `SIGTERM` (enviado por `docker stop` e orquestradores) ou `SIGINT`, o motor para de aceitar conexões, espera as requisições em andamento terminarem (até 10s, `shutdownTimeout`) e só então desconecta o MongoDB. Dois cuidados:
+
+- O `Listen` roda numa goroutine e o encerramento usa `ShutdownWithTimeout`, que **bloqueia** até as requisições terminarem. O `GracefulContext` do Fiber não foi usado porque nele o `Listen` retorna assim que o listener fecha, antes das requisições em andamento — o banco seria desconectado no meio delas.
+- A janela entre `SIGTERM` e `SIGKILL` precisa caber o **pior caso** do encerramento, senão o orquestrador mata o processo antes: 10s esperando requisições + 5s de prazo para desconectar o MongoDB = 15s. O compose define `stop_grace_period: 20s` (o padrão do Docker, 10s, não caberia). O pior caso foi observado na prática: com o Mongo fora do ar, o `Disconnect` consome o prazo inteiro.
+
+Verificação manual (Docker): com o Mongo de pé, `docker stop` encerra em menos de 1s; com uma requisição em andamento, ela recebe a resposta completa antes do processo sair, e o container termina com código `0` (e não `137`, de `SIGKILL`).
+
 ### 8.4. Demonstração
 
 - **README** com contexto de negócio, diagrama, como rodar (`docker compose up`, sem Go instalado), exemplos de chamada em curl e o **roadmap**.
@@ -254,5 +270,4 @@ Limitação conhecida: isso **não** cancela a query quando o cliente desconecta
 2. **Coleção `parties` (identidade de contraparte)**: promover a contraparte a entidade de primeira classe, identificada por **documento (CPF/CNPJ/tax id)** — não pelo nome — com índice único, e screening por documento. Envolve *entity resolution* (fuzzy matching contra listas de sanção), um problema à parte.
 3. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
 4. Regras em banco com versionamento (histórico de vigência das normas).
-5. **Graceful shutdown**: tratar `SIGTERM` (enviado por `docker stop` e orquestradores) para parar de aceitar conexões, concluir as requisições em andamento e fechar o MongoDB — hoje o processo encerra de imediato.
-6. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.
+5. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.

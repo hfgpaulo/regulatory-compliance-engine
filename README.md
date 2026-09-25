@@ -70,7 +70,8 @@ A mesma verificação (`gofmt`, `build`, `vet`, `test`) roda no CI a cada push/P
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `GET`  | `/api/v1/health`            | Healthcheck |
+| `GET`  | `/api/v1/health`            | Liveness: processo no ar |
+| `GET`  | `/api/v1/ready`             | Readiness: `200` se o MongoDB responde, `503` se não |
 | `POST` | `/api/v1/evaluate`          | Avalia um produto/operação, **persiste** e retorna a avaliação criada (201) |
 | `GET`  | `/api/v1/evaluations`       | Lista as avaliações mais recentes |
 | `GET`  | `/api/v1/evaluations/{id}`  | Recupera uma avaliação pelo id |
@@ -163,7 +164,6 @@ Motor funcional com testes automatizados e CI verde, construído em **blocos inc
 - **Identidade de contraparte (`parties`)** — promover a contraparte a entidade própria, identificada por documento (CPF/CNPJ), com *entity resolution* para screening.
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
 - **Regras versionadas em banco** — histórico de vigência das normas.
-- **Graceful shutdown** — tratar `SIGTERM` e concluir requisições em andamento antes de encerrar.
 - **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
 
 Detalhes na [especificação técnica](docs/especificacao_tecnica.md#9-roadmap-evolução-futura).
