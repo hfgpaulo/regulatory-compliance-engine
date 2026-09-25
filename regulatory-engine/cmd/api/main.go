@@ -14,7 +14,6 @@ import (
 
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/config"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/database"
-	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/engine"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/httpapi"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/repository"
 	"github.com/hfgpaulo/regulatory-compliance-engine/regulatory-engine/internal/rules"
@@ -56,11 +55,7 @@ func main() {
 		slog.Error("nao foi possivel carregar as regras", "err", err)
 		os.Exit(1)
 	}
-	eng := engine.New(
-		rules.NewIOFRule(params.IOF.InternationalTransfer.Rate, params.FX.USDBRL),
-		rules.NewPLDThresholdRule(params.PLD.ReportingThreshold.Amount, params.FX.USDBRL),
-		rules.NewPLDScreeningRule(params.PLD.SanctionedNames),
-	)
+	eng := rules.NewEngine(params)
 	slog.Info("motor de regras carregado", "path", cfg.RulesPath, "rules_version", params.Version)
 
 	// Repositório de avaliações (persistência no MongoDB).
