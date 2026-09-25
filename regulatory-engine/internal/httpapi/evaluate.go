@@ -1,9 +1,7 @@
 package httpapi
 
 import (
-	"context"
 	"errors"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 
@@ -38,10 +36,7 @@ func (s *Server) evaluate(c fiber.Ctx) error {
 
 	evaluation := model.Evaluation{Request: req, Report: report}
 
-	// Deriva do contexto da requisição para propagar o que os middlewares
-	// anexarem (request-id, tracing). Não cancela se o cliente desconectar:
-	// o fasthttp não sinaliza desconexão durante o handler.
-	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	ctx, cancel := newRequestContext(c)
 	defer cancel()
 	if err := s.store.Save(ctx, &evaluation); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

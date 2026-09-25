@@ -1,16 +1,12 @@
 package httpapi
 
 import (
-	"context"
-	"time"
-
 	"github.com/gofiber/fiber/v3"
 )
 
 // listEvaluations devolve as avaliações mais recentes.
 func (s *Server) listEvaluations(c fiber.Ctx) error {
-	// Mesma derivação do evaluate: propaga o contexto da requisição.
-	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	ctx, cancel := newRequestContext(c)
 	defer cancel()
 
 	evaluations, err := s.store.List(ctx, 50)
@@ -26,8 +22,7 @@ func (s *Server) listEvaluations(c fiber.Ctx) error {
 func (s *Server) getEvaluation(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	// Mesma derivação do evaluate: propaga o contexto da requisição.
-	ctx, cancel := context.WithTimeout(c.Context(), 5*time.Second)
+	ctx, cancel := newRequestContext(c)
 	defer cancel()
 
 	evaluation, err := s.store.FindByID(ctx, id)
