@@ -157,13 +157,22 @@ regulatory-compliance-engine/
 
 ## Status
 
-Motor funcional com testes automatizados e CI verde, construído em **blocos incrementais**. Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo e as próximas etapas.
+Motor funcional, construído em **blocos incrementais**. Já entrega:
+
+- **Regras regulatórias** de IOF (transferência internacional) e PLD/COAF (teto de comunicação e screening de PEP/sancionados), parametrizadas em `rules.json`.
+- **Parametrização validada no boot** (fail-fast): valores incoerentes impedem o serviço de subir.
+- **Validação de entrada**: requisição incompleta retorna `400` com todos os campos inválidos, em vez de sair "conforme" por omissão.
+- **Auditoria**: cada avaliação é persistida com o pedido, o veredito e o `rules_version` (hash da parametrização que a produziu).
+- **Operação**: readiness (`/ready`) separado de liveness (`/health`), healthcheck no container e encerramento gracioso.
+- **Entrega**: imagem Docker (distroless, usuário sem privilégio), testes automatizados e CI (fmt, build, vet, test e docker build).
+
+Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo e as decisões de projeto.
 
 ## Roadmap
 
 - **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
-- **Regras versionadas em banco** — histórico de vigência das normas.
+- **Regras em banco com vigência** — hoje cada avaliação já registra o hash da parametrização usada; a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
 - **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
 
 Detalhes na [especificação técnica](docs/especificacao_tecnica.md#9-roadmap-evolução-futura).

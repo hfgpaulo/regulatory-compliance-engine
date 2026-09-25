@@ -274,5 +274,5 @@ Verificação manual (Docker): com o Mongo de pé, `docker stop` encerra em meno
 
 1. **Gateway PHP + Slim**: serviço que representa o sistema legado e chama o motor Go (integração legado ↔ novo).
 2. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
-3. Regras em banco com versionamento (histórico de vigência das normas).
+3. **Regras em banco com vigência**: hoje cada avaliação já registra o hash da parametrização usada (`rules_version`, seção 7); a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
 4. **Testes de integração do repositório** contra um MongoDB real (ex.: testcontainers), cobrindo persistência e índices, hoje verificados manualmente.
