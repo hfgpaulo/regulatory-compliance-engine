@@ -22,7 +22,7 @@ Go 1.25 · Fiber v3 · MongoDB · Docker Compose · GitHub Actions. Testes autom
 
 ## Como rodar
 
-Com **Docker** apenas (sem Go instalado), a stack completa — MongoDB + motor — sobe em containers:
+Com **Docker** apenas (sem Go nem PHP instalados), a stack completa — MongoDB, motor (porta 3000) e gateway legado (porta 8080, em construção) — sobe em containers, cada serviço só depois do anterior ficar saudável:
 
 ```bash
 docker compose up -d --build --wait
