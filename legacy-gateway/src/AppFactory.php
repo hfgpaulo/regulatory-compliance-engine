@@ -13,15 +13,15 @@ use Slim\Factory\AppFactory as SlimAppFactory;
 /**
  * Monta a aplicação Slim. É o único ponto de montagem: o public/index.php e
  * os testes usam a mesma função, então o teste exercita o app de produção.
- * O cliente do motor chega por parâmetro: em produção aponta para o motor
- * real; nos testes, para um Guzzle com respostas simuladas.
+ * As dependências externas chegam por parâmetro: em produção, o motor real,
+ * o MySQL legado e o log em JSON; nos testes, dublês em memória.
  */
 final class AppFactory
 {
     /**
      * @return App<ContainerInterface|null>
      */
-    public static function create(EngineClient $engine): App
+    public static function create(EngineClient $engine, ProposalRepository $proposals, EventLog $log): App
     {
         $app = SlimAppFactory::create();
         $app->addRoutingMiddleware();
@@ -37,7 +37,7 @@ final class AppFactory
             return $response->withHeader('Content-Type', 'application/json');
         });
 
-        $app->post('/propostas', new CreateProposalAction($engine, new ProposalTranslator()));
+        $app->post('/propostas', new CreateProposalAction($engine, new ProposalTranslator(), $proposals, $log));
 
         return $app;
     }

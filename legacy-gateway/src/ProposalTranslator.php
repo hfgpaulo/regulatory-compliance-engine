@@ -123,6 +123,29 @@ final class ProposalTranslator
     }
 
     /**
+     * Monta a linha do banco legado a partir da proposta (já validada) e da
+     * resposta legada. Guarda o vocabulário do legado, não o do motor.
+     *
+     * @param array<mixed>          $proposal       proposta no formato legado
+     * @param array<string, mixed>  $legacyResponse resposta de toLegacyResponse
+     */
+    public function toRecord(array $proposal, array $legacyResponse): ProposalRecord
+    {
+        return new ProposalRecord(
+            protocolo: self::text($legacyResponse['protocolo'] ?? null),
+            tipoProduto: self::text(self::at($proposal, 'produto', 'tipo')),
+            modalidade: self::text(self::at($proposal, 'operacao', 'modalidade')),
+            valorCentavos: self::integer(self::at($proposal, 'operacao', 'valor_centavos')),
+            moeda: self::text(self::at($proposal, 'operacao', 'moeda')),
+            contraparteNome: self::text(self::at($proposal, 'operacao', 'contraparte', 'nome')),
+            contrapartePep: self::text(self::at($proposal, 'operacao', 'contraparte', 'pep')),
+            situacao: self::text($legacyResponse['situacao'] ?? null),
+            iofCentavos: self::integer($legacyResponse['iof_centavos'] ?? null),
+            versaoRegras: self::text($legacyResponse['versao_regras'] ?? null),
+        );
+    }
+
+    /**
      * Traduz os campos de um 400 do motor para o vocabulário do legado.
      * Um campo sem tradução conhecida mantém o nome do motor (melhor que sumir).
      *
@@ -173,6 +196,16 @@ final class ProposalTranslator
         }
 
         return 0;
+    }
+
+    private static function text(mixed $value): string
+    {
+        return is_string($value) ? $value : '';
+    }
+
+    private static function integer(mixed $value): int
+    {
+        return is_int($value) ? $value : 0;
     }
 
     /**
