@@ -48,8 +48,12 @@ func (r *EvaluationRepository) Save(ctx context.Context, eval *model.Evaluation)
 		eval.ID = primitive.NewObjectID().Hex()
 	}
 	if eval.CreatedAt.IsZero() {
-		eval.CreatedAt = time.Now().UTC()
+		eval.CreatedAt = time.Now()
 	}
+	// O MongoDB guarda datas com precisão de milissegundos. Truncar antes de
+	// gravar faz a resposta do POST mostrar o mesmo created_at que um GET
+	// posterior devolveria (sem isso, o POST exibia nanossegundos).
+	eval.CreatedAt = eval.CreatedAt.UTC().Truncate(time.Millisecond)
 	_, err := r.col.InsertOne(ctx, eval)
 	return err
 }
