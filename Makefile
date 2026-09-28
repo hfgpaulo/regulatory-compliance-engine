@@ -1,6 +1,6 @@
 ENGINE = regulatory-engine
 
-.PHONY: help up down mongo-up mongo-logs run dev build test tidy fmt vet
+.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet
 
 help: ## Mostra esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -27,8 +27,12 @@ run: ## Compila e executa a API (sem hot reload)
 build: ## Compila o binario da API
 	cd $(ENGINE) && go build -o bin/regulatory-engine ./cmd/api
 
-test: ## Executa os testes
+test: ## Executa os testes (integracao do repositorio e pulada sem MONGO_TEST_URI)
 	cd $(ENGINE) && go test ./...
+
+test-integration: ## Sobe o MongoDB e executa todos os testes, incluindo integracao
+	docker compose up -d --wait mongodb
+	cd $(ENGINE) && MONGO_TEST_URI=mongodb://admin:admin123@localhost:27017 go test -count=1 ./...
 
 tidy: ## Ajusta as dependencias
 	cd $(ENGINE) && go mod tidy

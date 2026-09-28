@@ -13,6 +13,22 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    # MongoDB real para os testes de integração do repositório (acessível em
+    # localhost:27017 a partir dos passos do job).
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: admin
+          MONGO_INITDB_ROOT_PASSWORD: admin123
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     # O módulo Go mora em regulatory-engine/, não na raiz do repositório
     # (monorepo poliglota). Todos os passos abaixo rodam dentro dessa pasta.
     defaults:
@@ -48,7 +64,11 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Com MONGO_TEST_URI definida, os testes de integração do repositório
+      # rodam contra o service container (sem ela, eles se pulam).
       - name: Test
+        env:
+          MONGO_TEST_URI: mongodb://admin:admin123@localhost:27017
         run: go test ./...
 
   # Job paralelo: garante que o Dockerfile continua construindo a imagem.
