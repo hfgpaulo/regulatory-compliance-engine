@@ -56,15 +56,20 @@ curl http://localhost:3000/api/v1/health
 
 ## Testes
 
-Suíte de testes unitários e de handler. Não exige MongoDB — os handlers são
-testados contra a interface de persistência com um dublê em memória:
+Testes unitários, de handler e de aceitação (cenários regulatórios com o `rules.json` real). Não exigem MongoDB — os handlers são testados contra a interface de persistência com um dublê em memória:
 
 ```bash
 cd regulatory-engine
 go test ./...
 ```
 
-A mesma verificação (`gofmt`, `build`, `vet`, `test`) roda no CI a cada push/PR.
+Os testes de integração do repositório rodam contra um MongoDB real e se pulam sem `MONGO_TEST_URI`. Para rodá-los localmente (sobe o Mongo do compose):
+
+```bash
+make test-integration
+```
+
+A mesma verificação (`gofmt`, `build`, `vet`, `test` com integração, `docker build`) roda no CI a cada push/PR.
 
 Para testar a API na prática, há um catálogo de cenários com entrada e resultado esperado em [`docs/cenarios_de_teste.md`](docs/cenarios_de_teste.md), prontos para executar pelo VS Code (REST Client) em [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http). Os cenários regulatórios são os mesmos do teste automatizado de aceitação.
 
@@ -175,6 +180,5 @@ Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo c
 - **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
 - **Regras em banco com vigência** — hoje cada avaliação já registra o hash da parametrização usada; a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
-- **Testes de integração** — repositório testado contra MongoDB real (testcontainers).
 
 Detalhes na [especificação técnica](docs/especificacao_tecnica.md#9-roadmap-evolução-futura).
