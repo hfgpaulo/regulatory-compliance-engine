@@ -52,6 +52,9 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
+    environment:
+      # Dentro da rede do compose o motor é alcançado pelo nome do serviço.
+      ENGINE_URL: http://regulatory-engine:3000
     depends_on:
       # O gateway existe para chamar o motor: só sobe com ele pronto (readiness).
       regulatory-engine:
