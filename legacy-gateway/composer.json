@@ -1,0 +1,31 @@
+{
+    "name": "hfgpaulo/legacy-gateway",
+    "description": "Gateway legado (PHP + Slim) que traduz propostas no formato legado para o regulatory-engine.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "slim/slim": "^4.14",
+        "slim/psr7": "^1.7"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "LegacyGateway\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "LegacyGateway\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        },
+        "sort-packages": true
+    }
+}

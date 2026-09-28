@@ -1,0 +1,7 @@
+vendor/
+tests/
+.phpunit.cache/
+phpunit.xml
+phpstan.neon
+Dockerfile
+.dockerignore
