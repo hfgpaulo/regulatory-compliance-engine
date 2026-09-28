@@ -6,7 +6,7 @@ GATEWAY = legacy-gateway
 # MSYS_NO_PATHCONV evita que o Git Bash no Windows reescreva os caminhos.
 GATEWAY_RUN = MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
 
-.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test
+.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e
 
 help: ## Mostra esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -51,6 +51,10 @@ vet: ## Analise estatica basica
 
 gateway-install: ## Instala as dependencias do gateway (composer.lock)
 	$(GATEWAY_RUN) composer:2 composer install --no-interaction --no-progress
+
+e2e: ## Sobe a stack e roda o E2E (propostas pelo gateway ate o MySQL e o MongoDB)
+	docker compose up -d --build --wait
+	bash scripts/e2e.sh
 
 gateway-test: gateway-install ## Analise estatica (PHPStan) e testes (PHPUnit) do gateway
 	$(GATEWAY_RUN) php:8.3-cli sh -c "vendor/bin/phpstan analyse --no-progress && vendor/bin/phpunit"
