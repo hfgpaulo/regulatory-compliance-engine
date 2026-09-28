@@ -80,3 +80,34 @@ jobs:
 
       - name: Build image
         run: docker build -t regulatory-engine:ci regulatory-engine
+
+  # Gateway legado (PHP): análise estática, testes e build da imagem.
+  gateway:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: legacy-gateway
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Static analysis (PHPStan)
+        run: vendor/bin/phpstan analyse --no-progress
+
+      - name: Test (PHPUnit)
+        run: vendor/bin/phpunit
+
+      - name: Build image
+        run: docker build -t legacy-gateway:ci .
