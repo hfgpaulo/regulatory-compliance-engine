@@ -1,5 +1,5 @@
-# Orquestração local: MongoDB e o motor Go. O gateway PHP entra em um bloco
-# posterior. Para desenvolver com hot reload, suba só o MongoDB (make dev).
+# Orquestração local: MongoDB, o motor Go e o gateway legado PHP. Para
+# desenvolver o motor com hot reload, suba só o MongoDB (make dev).
 services:
   mongodb:
     image: mongo:7
@@ -45,6 +45,23 @@ services:
     # Janela entre SIGTERM e SIGKILL. Pior caso do motor: 10s esperando
     # requisições (shutdownTimeout) + 5s desconectando o Mongo = 15s; 20s dá margem.
     stop_grace_period: 20s
+
+  legacy-gateway:
+    build: ./legacy-gateway
+    container_name: legacy-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      # O gateway existe para chamar o motor: só sobe com ele pronto (readiness).
+      regulatory-engine:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
 
 volumes:
   mongo_data:

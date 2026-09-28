@@ -11,6 +11,10 @@
 # Hot reload (Air)
 /regulatory-engine/tmp/
 
+# Dependencias e cache do gateway PHP (o composer.lock e versionado)
+/legacy-gateway/vendor/
+/legacy-gateway/.phpunit.cache/
+
 # Cobertura de testes
 coverage.*
 *.coverage

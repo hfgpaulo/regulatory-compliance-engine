@@ -1,11 +1,17 @@
 ENGINE = regulatory-engine
+GATEWAY = legacy-gateway
 
-.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet
+# Roda comandos do gateway em containers (nao exige PHP local). O composer:2
+# instala as dependencias; os testes rodam no mesmo PHP da imagem (8.3).
+# MSYS_NO_PATHCONV evita que o Git Bash no Windows reescreva os caminhos.
+GATEWAY_RUN = MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
+
+.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test
 
 help: ## Mostra esta ajuda
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
-up: ## Sobe a stack completa em containers (MongoDB + motor)
+up: ## Sobe a stack completa em containers (MongoDB + motor + gateway)
 	docker compose up -d --build --wait
 
 down: ## Para a stack completa
@@ -42,3 +48,9 @@ fmt: ## Formata o codigo
 
 vet: ## Analise estatica basica
 	cd $(ENGINE) && go vet ./...
+
+gateway-install: ## Instala as dependencias do gateway (composer.lock)
+	$(GATEWAY_RUN) composer:2 composer install --no-interaction --no-progress
+
+gateway-test: gateway-install ## Analise estatica (PHPStan) e testes (PHPUnit) do gateway
+	$(GATEWAY_RUN) php:8.3-cli sh -c "vendor/bin/phpstan analyse --no-progress && vendor/bin/phpunit"
