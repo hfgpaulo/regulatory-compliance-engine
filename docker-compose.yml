@@ -1,5 +1,6 @@
-# Orquestração local: MongoDB, o motor Go e o gateway legado PHP. Para
-# desenvolver o motor com hot reload, suba só o MongoDB (make dev).
+# Orquestração local: MongoDB e o motor Go (sistema atual), o gateway PHP e o
+# MySQL (sistema legado). Para desenvolver o motor com hot reload, suba só o
+# MongoDB (make dev).
 services:
   mongodb:
     image: mongo:7
@@ -53,11 +54,17 @@ services:
     ports:
       - "8080:80"
     environment:
-      # Dentro da rede do compose o motor é alcançado pelo nome do serviço.
+      # Dentro da rede do compose os serviços são alcançados pelo nome.
       ENGINE_URL: http://regulatory-engine:3000
+      DB_DSN: mysql:host=legacy-mysql;port=3306;dbname=legacy;charset=utf8mb4
+      DB_USER: ${LEGACY_DB_USER:-legacy}
+      DB_PASSWORD: ${LEGACY_DB_PASSWORD:-legacy123}
     depends_on:
       # O gateway existe para chamar o motor: só sobe com ele pronto (readiness).
       regulatory-engine:
+        condition: service_healthy
+      # A migração do banco legado roda na subida do gateway.
+      legacy-mysql:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/health"]
@@ -66,5 +73,31 @@ services:
       retries: 3
       start_period: 5s
 
+  # Banco do sistema legado: registra as propostas aceitas, no vocabulário do
+  # legado. Porta 3307 no host para não colidir com um MySQL local na 3306.
+  legacy-mysql:
+    image: mysql:8.4
+    container_name: legacy-mysql
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      # Credenciais de desenvolvimento (nao-secretas).
+      MYSQL_DATABASE: legacy
+      MYSQL_USER: ${LEGACY_DB_USER:-legacy}
+      MYSQL_PASSWORD: ${LEGACY_DB_PASSWORD:-legacy123}
+      MYSQL_ROOT_PASSWORD: ${LEGACY_DB_ROOT_PASSWORD:-root123}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      # Via TCP (127.0.0.1): o servidor temporário da inicialização só escuta
+      # no socket, então o ping só passa quando o servidor definitivo sobe.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u${LEGACY_DB_USER:-legacy}", "-p${LEGACY_DB_PASSWORD:-legacy123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
 volumes:
   mongo_data:
+  mysql_data:
