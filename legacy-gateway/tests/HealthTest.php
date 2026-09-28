@@ -12,7 +12,7 @@ final class HealthTest extends TestCase
 {
     public function testHealthReturnsOk(): void
     {
-        $app = AppFactory::create();
+        $app = AppFactory::create(FakeEngine::client([]));
         $request = (new ServerRequestFactory())->createServerRequest('GET', '/health');
 
         $response = $app->handle($request);
@@ -27,7 +27,7 @@ final class HealthTest extends TestCase
 
     public function testUnknownRouteReturns404(): void
     {
-        $app = AppFactory::create();
+        $app = AppFactory::create(FakeEngine::client([]));
         $request = (new ServerRequestFactory())->createServerRequest('GET', '/nao-existe');
 
         self::assertSame(404, $app->handle($request)->getStatusCode());
