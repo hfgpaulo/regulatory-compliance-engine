@@ -12,23 +12,34 @@ Dado um produto ou operação financeira, o sistema responde a duas perguntas: *
 
 ![Arquitetura da solução](docs/arquitetura.png)
 
-- **`regulatory-engine`** (Go + Fiber v3): motor de regras e domínios regulatórios.
-- **`legacy-gateway`** (PHP + Slim): gateway que representa o sistema legado _(blocos futuros)_.
-- **MongoDB**: persistência de submissões e vereditos.
+Fluxo principal: **proposta no formato legado → gateway PHP → motor Go**.
+
+- **`regulatory-engine`** (Go + Fiber v3): motor de regras e domínios regulatórios. Grava cada avaliação no **MongoDB** (auditoria, fonte da verdade).
+- **`legacy-gateway`** (PHP + Slim): representa o sistema legado. Atua como **camada anticorrupção** — traduz o formato legado (campos em português, valores em centavos, `"S"`/`"N"`) para o contrato do motor e de volta — e registra as propostas aceitas no **MySQL legado**.
+- Os dois bancos se ligam pelo `protocolo` (o id da avaliação no motor).
 
 ## Stack
 
-Go 1.25 · Fiber v3 · MongoDB · Docker Compose · GitHub Actions. Testes automatizados e CI já implementados; gateway PHP/Slim no roadmap.
+Go 1.25 · Fiber v3 · MongoDB · PHP 8.3 · Slim 4 · MySQL 8.4 · Docker Compose · GitHub Actions.
 
 ## Como rodar
 
-Com **Docker** apenas (sem Go nem PHP instalados), a stack completa — MongoDB, motor (porta 3000) e gateway legado (porta 8080, em construção) — sobe em containers, cada serviço só depois do anterior ficar saudável:
+Com **Docker** apenas (sem Go nem PHP instalados), a stack completa — MongoDB, motor (porta 3000), MySQL legado (porta 3307) e gateway (porta 8080) — sobe em containers, cada serviço só depois de suas dependências ficarem saudáveis:
 
 ```bash
 docker compose up -d --build --wait
 ```
 
-Ou `make up` / `make down`. A imagem do motor é multi-stage (binário estático sobre distroless, usuário sem privilégio) e leva o `rules.json` embutido.
+Ou `make up` / `make down`. A imagem do motor é multi-stage (binário estático sobre distroless, usuário sem privilégio) e leva o `rules.json` embutido; a do gateway é `php:8.3-apache` e cria a tabela do banco legado ao subir.
+
+### Consultar os bancos
+
+| Banco | Ferramenta | Conexão |
+|---|---|---|
+| MongoDB (motor) — coleção `evaluations` | MongoDB Compass ou `mongosh` | `mongodb://admin:admin123@localhost:27017`, banco `regulatory` |
+| MySQL (legado) — tabela `propostas` | DBeaver (driver MySQL) | host `localhost`, porta `3307`, banco `legacy`, usuário `legacy`, senha `legacy123` |
+
+Credenciais de desenvolvimento, não secretas. No DBeaver, se aparecer "Public Key Retrieval is not allowed", defina `allowPublicKeyRetrieval=true` nas propriedades do driver.
 
 ### Desenvolvimento (hot reload)
 
@@ -69,11 +80,50 @@ Os testes de integração do repositório rodam contra um MongoDB real e se pula
 make test-integration
 ```
 
-A mesma verificação (`gofmt`, `build`, `vet`, `test` com integração, `docker build`) roda no CI a cada push/PR.
+Gateway (PHP), em container — não exige PHP local:
+
+```bash
+make gateway-test
+```
+
+E2E — o contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB:
+
+```bash
+make e2e
+```
+
+No CI, a cada push/PR: motor (`gofmt`, `build`, `vet`, `test` com integração), gateway (PHPStan, PHPUnit), build das imagens e E2E.
 
 Para testar a API na prática, há um catálogo de cenários com entrada e resultado esperado em [`docs/cenarios_de_teste.md`](docs/cenarios_de_teste.md), prontos para executar pelo VS Code (REST Client) em [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http). Os cenários regulatórios são os mesmos do teste automatizado de aceitação.
 
 ## Endpoints
+
+### Gateway legado (porta 8080)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/propostas` | Recebe a proposta no formato legado, avalia no motor, registra no MySQL legado e responde no formato legado (201) |
+| `GET`  | `/health`    | Liveness |
+
+```bash
+curl -X POST http://localhost:8080/propostas \
+  -H "Content-Type: application/json" \
+  -d '{
+        "produto":  { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+        "operacao": { "valor_centavos": 7500000, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                      "contraparte": { "nome": "John Doe", "pep": "N" } }
+      }'
+```
+
+```json
+{ "protocolo": "6abab272d44d8dedcac5a7a6", "situacao": "COMUNICAR_COAF", "iof_centavos": 142500,
+  "exigencias": ["Incluir calculo e retencao de IOF no fluxo de entrada.", "Gerar comunicacao ao COAF para a operacao."],
+  "versao_regras": "sha256:cab75867...2dba4f" }
+```
+
+Proposta inválida retorna `422` com os campos no vocabulário legado — inclusive os que o motor rejeitou, traduzidos; motor indisponível retorna `503`.
+
+### Motor (porta 3000)
 
 | Método | Rota | Descrição |
 |---|---|---|
@@ -138,7 +188,7 @@ Requisição inválida (campo ausente, valor não positivo ou com mais de 2 casa
 }
 ```
 
-As regras completas estão na [especificação técnica](docs/especificacao_tecnica.md#5-contrato-da-api-regulatory-engine).
+As regras completas dos dois contratos estão na [especificação técnica](docs/especificacao_tecnica.md#5-contratos-das-apis).
 
 > Os valores regulatórios (alíquotas, limites, câmbio) vivem em `regulatory-engine/config/rules.json` e são **configuráveis** — mudar a norma não exige recompilar a lógica. O arquivo é validado no boot: parametrização incoerente impede o serviço de subir.
 
@@ -146,38 +196,45 @@ As regras completas estão na [especificação técnica](docs/especificacao_tecn
 
 ```
 regulatory-compliance-engine/
-├── docker-compose.yml        # infraestrutura local (MongoDB)
+├── docker-compose.yml        # MongoDB + motor, MySQL + gateway
 ├── Makefile                  # atalhos de desenvolvimento
-├── docs/                     # especificação e diagramas
-└── regulatory-engine/        # motor de regras (Go)
-    ├── cmd/api/              # ponto de entrada
-    ├── config/rules.json     # parametrização regulatória (alíquotas, limites, câmbio)
-    └── internal/
-        ├── config/           # configuração via ambiente
-        ├── database/         # conexão com o MongoDB
-        ├── model/            # structs do domínio (contrato)
-        ├── money/            # tipo monetário (decimal, sempre 2 casas)
-        ├── engine/           # interface Rule + avaliador
-        ├── rules/            # regras (ex.: IOF) + carregamento do rules.json
-        └── httpapi/          # servidor, rotas e handlers HTTP
+├── scripts/e2e.sh            # E2E: gateway -> motor -> MySQL e MongoDB
+├── docs/                     # especificação, diagramas e cenários de teste
+├── regulatory-engine/        # motor de regras (Go)
+│   ├── cmd/api/              # ponto de entrada
+│   ├── config/rules.json     # parametrização regulatória (alíquotas, limites, câmbio)
+│   └── internal/
+│       ├── config/           # configuração via ambiente
+│       ├── database/         # conexão com o MongoDB
+│       ├── model/            # structs do domínio (contrato) + validação
+│       ├── money/            # tipo monetário (decimal, sempre 2 casas)
+│       ├── engine/           # interface Rule + avaliador
+│       ├── rules/            # regras (IOF, PLD) + carregamento do rules.json
+│       ├── repository/       # persistência das avaliações
+│       └── httpapi/          # servidor, rotas e handlers HTTP
+└── legacy-gateway/           # sistema legado (PHP + Slim)
+    ├── public/index.php      # ponto de entrada
+    ├── bin/migrate.php       # cria a tabela do MySQL legado ao subir
+    ├── src/                  # tradução, cliente do motor, handler, repositório
+    └── tests/                # PHPUnit
 ```
 
 ## Status
 
-Motor funcional, construído em **blocos incrementais**. Já entrega:
+Funcional, construído em **blocos incrementais**. Já entrega:
 
 - **Regras regulatórias** de IOF (transferência internacional) e PLD/COAF (teto de comunicação e screening de PEP/sancionados), parametrizadas em `rules.json`.
 - **Parametrização validada no boot** (fail-fast): valores incoerentes impedem o serviço de subir.
 - **Validação de entrada**: requisição incompleta retorna `400` com todos os campos inválidos, em vez de sair "conforme" por omissão.
 - **Auditoria**: cada avaliação é persistida com o pedido, o veredito e o `rules_version` (hash da parametrização que a produziu).
 - **Operação**: readiness (`/ready`) separado de liveness (`/health`), healthcheck no container e encerramento gracioso.
-- **Entrega**: imagem Docker (distroless, usuário sem privilégio), testes automatizados e CI (fmt, build, vet, test e docker build).
+- **Integração com o legado**: gateway PHP como camada anticorrupção, com banco legado próprio (MySQL) e logs de rejeição sem dados pessoais.
+- **Entrega**: imagens Docker, testes automatizados (Go e PHP), E2E do contrato entre os serviços e CI.
 
 Veja a [especificação técnica](docs/especificacao_tecnica.md) para o escopo completo e as decisões de projeto.
 
 ## Roadmap
 
-- **Gateway PHP + Slim** — serviço legado que consome o motor Go (integração legado ↔ novo).
 - **Novos domínios** — Limites Bacen/Pix, LGPD, SCR.
 - **Regras em banco com vigência** — hoje cada avaliação já registra o hash da parametrização usada; a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
 

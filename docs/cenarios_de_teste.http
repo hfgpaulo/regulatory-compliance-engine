@@ -1,12 +1,13 @@
-# Cenários de teste manuais da API do regulatory-engine.
+# Cenários de teste manuais do motor (regulatory-engine) e do gateway legado.
 # Uso: extensão REST Client do VS Code (humao.rest-client) — clique em
 # "Send Request" acima de cada requisição. Descrição e resultado esperado de
 # cada cenário: docs/cenarios_de_teste.md. Os cenários C01–C10 são os mesmos
-# do teste automatizado internal/rules/acceptance_test.go.
+# do teste automatizado internal/rules/acceptance_test.go; G01–G04 rodam no E2E.
 #
-# Pré-requisito: API no ar (make up ou make dev).
+# Pré-requisito: stack no ar (make up). Os cenários G* precisam do gateway.
 
 @baseUrl = http://localhost:3000/api/v1
+@gatewayUrl = http://localhost:8080
 @contentType = application/json
 
 ### H01 — liveness (esperado: 200, status "ok")
@@ -176,3 +177,52 @@ GET {{baseUrl}}/evaluations/{{c01.response.body.$.id}}
 
 ### P03 — id inexistente (esperado: 404, "avaliacao nao encontrada")
 GET {{baseUrl}}/evaluations/nao-existe
+
+### G01 — gateway: proposta aceita (esperado: 201, PENDENTE_ADAPTACAO, iof_centavos 1900)
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{
+  "produto": { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 100000, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "John Doe", "pep": "N" } }
+}
+
+### G02 — gateway: todos os domínios (esperado: 201, COMUNICAR_COAF, iof_centavos 142500, 3 exigências)
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{
+  "produto": { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 7500000, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "Mara Costa", "pep": "S" } }
+}
+
+### G03 — gateway: formato legado inválido (esperado: 422, operacao.valor_centavos e operacao.contraparte.pep)
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{
+  "produto": { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 75000.5, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "John Doe", "pep": "talvez" } }
+}
+
+### G04 — gateway: rejeitada pelo motor, erro traduzido (esperado: 422, operacao.moeda)
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{
+  "produto": { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 100000, "moeda": "BRL", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "John Doe", "pep": "N" } }
+}
+
+### G05 — gateway: corpo não é JSON (esperado: 400)
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{ nao e json
+
+### G06 — gateway: liveness (esperado: 200, service "legacy-gateway")
+GET {{gatewayUrl}}/health

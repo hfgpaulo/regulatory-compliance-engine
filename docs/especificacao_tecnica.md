@@ -26,14 +26,15 @@ O projeto demonstra três capacidades:
 
 ## 3. Arquitetura
 
-Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzindo um padrão real de migração/modernização gradual — a coexistência entre um sistema legado e uma nova API. Hoje o motor e o MongoDB já rodam no compose; o gateway entra em bloco futuro:
+Dois microsserviços conteinerizados, orquestrados por Docker Compose, reproduzindo um padrão comum de migração/modernização gradual — a coexistência entre um sistema legado e uma nova API, cada um com o seu banco. O fluxo principal: **proposta no formato legado → gateway PHP → motor Go**, com o legado registrando a proposta no MySQL e o motor registrando a avaliação completa no MongoDB.
 
-![Arquitetura da solução: motor Go e MongoDB orquestrados por Docker Compose, rules.json embutido no motor e gateway PHP como bloco futuro](arquitetura.png)
+![Arquitetura da solução: gateway PHP com MySQL legado e motor Go com MongoDB, orquestrados por Docker Compose; rules.json embutido no motor](arquitetura.png)
 
 **Papéis:**
 
 - **`regulatory-engine` (Go + Fiber):** coração do projeto. Recebe uma operação/produto, devolve o veredito de conformidade e **persiste cada avaliação no MongoDB** (requisição + veredito, como registro de auditoria), expondo o histórico por API. Contém o motor de regras e os domínios regulatórios e lê a parametrização de um arquivo de regras. Não guarda estado em memória entre requisições — todo estado vive no banco —, então escala horizontalmente.
-- **`legacy-gateway` (PHP + Slim, bloco futuro):** representa o sistema legado de uma instituição financeira. Faz o *intake* das submissões e chama o motor Go. É o ponto de integração legado ↔ moderno; o desenho detalhado (por exemplo, como consome o histórico) será definido no bloco do gateway.
+- **`legacy-gateway` (PHP + Slim):** representa o sistema legado de uma instituição financeira, com **vocabulário e formato próprios** (campos em português, valores em centavos, flags `"S"`/`"N"`). Atua como **camada anticorrupção**: traduz a proposta legada para o contrato do motor e a avaliação de volta para o formato legado, sem que um lado contamine o outro (seção 5.2).
+- **Dois bancos, cada um com seu dono:** o **MySQL legado** guarda as propostas aceitas no vocabulário do legado; o **MongoDB** guarda as avaliações completas (a auditoria, fonte da verdade). Os dois se ligam pelo `protocolo` — o id da avaliação no motor.
 
 **Decisão de arquitetura-chave:** as regras (limites, alíquotas, gatilhos de reporte) **não são hardcoded** — vivem em parametrização configurável (`rules.json`, evoluível para tabela no banco). É uma boa prática essencial no contexto regulatório, porque norma muda com frequência.
 
@@ -69,7 +70,9 @@ Cada item indica se já está **implementado** (com o código da regra) ou **pla
 ### 4.3. (Roadmap) Limites Bacen/Pix + LGPD
 - Fica documentado como próxima fase, para o projeto ter história de evolução.
 
-## 5. Contrato da API (regulatory-engine)
+## 5. Contratos das APIs
+
+### 5.1. Motor (`regulatory-engine`)
 
 ```
 POST /api/v1/evaluate
@@ -163,12 +166,53 @@ Decisões: a validação fica no domínio (não em tags de biblioteca) para mant
 
 Suportar só USD é **decisão de escopo**, não limitação acidental: o cenário do projeto é a tropicalização EUA → Brasil. Aceitar outra moeda exigiria trocar `fx.usd_brl` por uma tabela de câmbio por moeda e um conversor único usado pelas regras, com a lista de moedas aceitas derivada da parametrização.
 
+### 5.2. Gateway legado (`legacy-gateway`)
+
+```
+POST /propostas   → traduz, chama o motor, registra no MySQL legado e responde no formato legado (201)
+GET  /health      → liveness
+```
+
+**Formato legado.** Entrada e saída no vocabulário do sistema legado:
+
+```json
+{ "produto":  { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 7500000, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "John Doe", "pep": "N" } } }
+```
+
+```json
+{ "protocolo": "6abab272d44d8dedcac5a7a6", "situacao": "COMUNICAR_COAF", "iof_centavos": 142500,
+  "exigencias": ["Incluir calculo e retencao de IOF...", "Gerar comunicacao ao COAF..."],
+  "versao_regras": "sha256:cab75867..." }
+```
+
+**Tradução (camada anticorrupção).** `EMPRESTIMO_PESSOAL` → `personal_loan`, `TRANSFERENCIA_INTERNACIONAL` → `international_transfer`, `pep: "S"/"N"` → `true/false`, e `valor_centavos` ↔ `amount` decimal com 2 casas por **aritmética inteira e de string, nunca float**. A `situacao` é a mais grave do relatório: algum resultado `reportable` → `COMUNICAR_COAF`; senão, algum `adaptation_required` → `PENDENTE_ADAPTACAO`; senão → `APROVADA`.
+
+**Erros.**
+
+| Situação | Resposta |
+|---|---|
+| Corpo não é JSON | `400` |
+| Formato legado inválido (tipo, enum, centavos não inteiros) | `422`, campos no vocabulário legado; o motor não é chamado |
+| Motor rejeita (`400` com `details`) | `422`, com os campos do motor **traduzidos** (`operation.currency` → `operacao.moeda`) |
+| Motor responde `5xx` ou fora do contrato | `502`, sem vazar detalhe interno |
+| Motor fora do ar ou timeout (2s conexão, 8s total) | `503` |
+
+**Decisões.**
+
+- **O gateway valida só o que traduz** (tipos e enums do legado). As regras de negócio — ISO, moeda suportada, contraparte obrigatória — ficam só no motor, a fonte da verdade; revalidá-las no gateway criaria duas validações que divergiriam com o tempo.
+- **`400` do motor sem `details` vira `502`, não `422`:** se o motor não entendeu o corpo que o *gateway* montou, o defeito é da integração, não da proposta do cliente.
+- **Falha ao gravar no MySQL legado responde `201` mesmo assim**, com um evento `gravacao_legado_falhou` (nível `ERROR`, com o `protocolo`) no log. O motor já gravou a avaliação; responder erro levaria o cliente a reenviar, e o motor — que não tem idempotência — criaria uma segunda avaliação. A linha legada é reconciliável pelo protocolo; a solução completa (padrão *outbox*) fica fora do escopo.
+- **Só propostas aceitas vão para o MySQL legado.** Rejeições e falhas vão para o log (seção 8.3), com o motivo e **sem dados pessoais**.
+
 ## 6. Estrutura de pastas (monorepo)
 
 ```
 regulatory-compliance-engine/
-├── .github/workflows/ci.yml      # CI: gofmt, build, vet, test + docker build
-├── docker-compose.yml            # MongoDB + motor
+├── .github/workflows/ci.yml      # CI: motor (Go), gateway (PHP), docker build e E2E
+├── docker-compose.yml            # MongoDB + motor, MySQL + gateway
+├── scripts/e2e.sh                # E2E: propostas pelo gateway até o MySQL e o MongoDB
 ├── Makefile                      # atalhos de desenvolvimento
 ├── README.md
 ├── docs/
@@ -190,12 +234,20 @@ regulatory-compliance-engine/
 │   ├── config/rules.json         # parametrização regulatória
 │   ├── go.mod
 │   └── Dockerfile                # imagem multi-stage (distroless)
-└── legacy-gateway/               # PHP + Slim (bloco futuro; estrutura definida no bloco)
+└── legacy-gateway/               # PHP 8.3 + Slim (Apache + mod_php)
+    ├── public/index.php          # ponto de entrada (DocumentRoot)
+    ├── bin/migrate.php           # migração idempotente do MySQL legado, antes do Apache
+    ├── src/                      # tradutor, cliente do motor, handler, repositório PDO, log
+    ├── tests/                    # PHPUnit com motor, banco e log simulados
+    ├── composer.json / .lock     # Slim, Guzzle; dev: PHPUnit, PHPStan
+    └── Dockerfile
 ```
 
 Os índices do MongoDB são criados pelo próprio motor no boot (ver seção 7), sem script de *seed* separado.
 
-## 7. Modelo de dados (MongoDB)
+## 7. Modelo de dados
+
+### 7.1. MongoDB (motor)
 
 Banco `regulatory`. A avaliação é gravada como **um único documento embedded** na coleção `evaluations` — o modelo idiomático de MongoDB: uma escrita, e uma leitura traz o quadro completo, sem "join".
 
@@ -219,6 +271,23 @@ Valores monetários são gravados como **Decimal128** (o decimal nativo do Mongo
 
 **Decisão de modelagem (embedded vs. referência).** `request` e `report` têm relação 1:1, nascem juntos e são sempre lidos juntos — portanto ficam **embutidos** no mesmo documento (separá-los em duas coleções seria um anti-padrão: duas escritas não-atômicas e um *join* na leitura, sem benefício). Como a avaliação é um **registro de auditoria**, o documento é tratado como um **retrato imutável** do que foi avaliado e do veredito daquele momento. Promover a **contraparte** a entidade própria (coleção `parties`) só se justificaria com uma **identidade estável** — um documento (CPF/CNPJ), não o nome —, o que exigiria *entity resolution* (casamento aproximado contra listas de sanção), um problema à parte e fora do escopo deste projeto.
 
+### 7.2. MySQL (legado)
+
+Banco `legacy`, tabela `propostas`, no estilo do legado — nomes em português e dinheiro em **centavos `BIGINT`** (sem float nem decimal):
+
+```sql
+id BIGINT AUTO_INCREMENT PRIMARY KEY, protocolo CHAR(24) NOT NULL UNIQUE,
+tipo_produto VARCHAR(40), modalidade VARCHAR(40), valor_centavos BIGINT, moeda CHAR(3),
+contraparte_nome VARCHAR(200), contraparte_pep CHAR(1), situacao VARCHAR(30),
+iof_centavos BIGINT, versao_regras VARCHAR(80), criado_em DATETIME(3)
+```
+
+O `protocolo` (único) é o id da avaliação no motor e liga os dois bancos: a linha legada diz o que o legado precisa saber; o documento no MongoDB tem a auditoria completa.
+
+**Schema pelo código, não por script de inicialização.** O `bin/migrate.php` roda `CREATE TABLE IF NOT EXISTS` a cada subida do container, antes do Apache aceitar tráfego — o mesmo princípio do `EnsureIndexes` do motor. Um script em `docker-entrypoint-initdb.d` só rodaria na **primeira** criação do volume. Se a migração falhar, o container não sobe (fail-fast).
+
+**Conexão preguiçosa.** O gateway só abre conexão com o MySQL na primeira gravação: o `/health` e as requisições rejeitadas não dependem do banco legado, e um MySQL fora do ar não interrompe o fluxo proposta → motor.
+
 ## 8. Testes e qualidade
 
 A garantia de qualidade do `regulatory-engine` se apoia em três pilares implementados: uma suíte de testes automatizados, um pipeline de integração contínua que a executa a cada mudança, e logs estruturados para observabilidade.
@@ -237,6 +306,10 @@ A suíte usa `testify` e cobre as três camadas do motor de forma independente:
 
 O ponto de projeto que torna isso possível é a **injeção de dependência** adotada nos blocos anteriores: como o servidor recebe o motor e o store por interface, ambos podem ser substituídos por dublês nos testes. Testes rápidos, determinísticos e que rodam em qualquer máquina limpa — inclusive no CI, sem infraestrutura.
 
+**Gateway (PHP).** PHPUnit com o mesmo padrão: o app é montado por um único `AppFactory` (usado pelo `index.php` e pelos testes), e as dependências externas chegam por parâmetro — o motor é simulado pelo `MockHandler` do Guzzle, o banco legado e o log por implementações em memória. Cobertos: conversão de centavos (fronteiras, sem float), tradução nos dois sentidos, precedência da `situacao`, mapeamento de erros (`400`/`422`/`502`/`503`), gravação só das aceitas, falha no MySQL respondendo `201` com evento de log, e um teste garantindo que **o nome da contraparte não aparece no log**. PHPStan (nível 8) faz a análise estática.
+
+**E2E: o contrato entre PHP e Go.** Cada lado testa contra um dublê do outro; nada disso garante que os dois **concordam** — se o motor renomear um campo, as duas suítes continuam verdes. O `scripts/e2e.sh` sobe a stack inteira e passa propostas reais pelo gateway (cenários C01, C05 e C10 aceitos, uma rejeição do gateway e uma do motor), conferindo a resposta legada, a linha no MySQL e a avaliação no MongoDB pelo mesmo protocolo, e que rejeitadas não são gravadas. Roda com `make e2e` e a cada push no CI. Verificado que falha quando deve: com o motor parado, todas as checagens das aceitas falham.
+
 ### 8.2. Integração contínua (CI)
 
 Um workflow de **GitHub Actions** roda a cada `push` na `main` e em todo *pull request*, numa máquina limpa do runner. A sequência reproduz a verificação local:
@@ -246,13 +319,20 @@ Um workflow de **GitHub Actions** roda a cada `push` na `main` e em todo *pull r
 3. **`go vet ./...`** — análise estática de problemas comuns.
 4. **`go test ./...`** — executa a suíte descrita acima, incluindo os testes de integração do repositório: o job sobe um MongoDB 7 como *service container* e define `MONGO_TEST_URI`.
 
-Em paralelo, um segundo job constrói a imagem Docker do motor (`docker build`), para que uma quebra no Dockerfile seja detectada no mesmo push, e não só no momento do deploy.
+Em paralelo, três outros jobs: a construção da imagem Docker do motor (`docker build`), para que uma quebra no Dockerfile seja detectada no mesmo push, e não só no deploy; o **gateway** (PHP 8.3: PHPStan, PHPUnit e build da imagem); e o **E2E**, que sobe a stack completa e roda o `scripts/e2e.sh`, mostrando os logs dos containers se falhar.
 
 O ambiente é fixado em Go 1.25 com cache de módulos. O valor concreto: a verificação deixa de depender da disciplina manual do desenvolvedor — um arquivo esquecido no commit, um `go.sum` inconsistente ou código desformatado são barrados antes de entrar na `main`. O estado do pipeline é exposto por um *badge* no README.
 
 ### 8.3. Observabilidade
 
 Os dois serviços emitem **logs estruturados em JSON** (via `slog` no motor Go). Um *middleware* de requisição registra método, rota, status e latência de cada chamada em formato de campo — pronto para ser filtrado por um agregador (Loki, ELK, CloudWatch) sem *parsing* de texto livre.
+
+No gateway, cada rejeição e falha vira um evento JSON (`proposta_rejeitada` com `origem` gateway/motor e os campos inválidos; `motor_indisponivel`, `falha_no_motor` e `gravacao_legado_falhou` com nível `ERROR`, para alertas por nível). Dois cuidados:
+
+- **Sem dados pessoais:** o evento leva os campos e as mensagens, nunca os dados da proposta — o nome da contraparte é dado pessoal (LGPD), e log não tem o controle de acesso nem a retenção de um banco.
+- **JSON puro no `stderr`:** o `error_log` do PHP, sob o Apache, prefixa a linha e escapa aspas, e o agregador deixaria de ler o JSON; por isso o evento é escrito direto no `stderr` do processo.
+
+Limitação conhecida: com o container do MySQL **parado**, a proposta leva cerca de 8s para ser respondida (ainda com `201`), porque a resolução de nome no DNS do Docker demora a desistir e o timeout de conexão do PDO não cobre essa etapa. Com o MySQL no ar mas recusando conexão, a falha é imediata.
 
 **Propagação de contexto.** Os handlers derivam o contexto das chamadas ao MongoDB do contexto da requisição (`c.Context()`), com timeout de 5s, em vez de partir de `context.Background()`. A derivação fica num helper único (`newRequestContext`, com o prazo na constante `storeTimeout`), para que nenhum handler novo parta do contexto errado nem repita o prazo. O ganho é um ponto único de propagação: quando entrar um *middleware* de request-id, tracing (OpenTelemetry) ou prazo por requisição, o que ele anexar chega ao banco sem alterar os handlers, e os *spans* do Mongo ficam ligados à requisição que os originou.
 
@@ -263,7 +343,7 @@ Limitação conhecida: isso **não** cancela a query quando o cliente desconecta
 - `GET /api/v1/health` (**liveness**) responde se o processo está vivo e **não consulta o banco**. Quem reage a uma falha de liveness reinicia o processo — e reiniciar não conserta um banco fora do ar, só geraria um ciclo de reinícios.
 - `GET /api/v1/ready` (**readiness**) pinga o MongoDB (prazo de 2s) e responde `503` se ele não responder. Falhar aqui tira o serviço do tráfego sem reiniciá-lo.
 
-No compose, o motor tem `healthcheck` baseado no readiness — é o que permitirá ao gateway declarar `depends_on: condition: service_healthy`. Como a imagem distroless não tem `curl` nem `wget`, o próprio binário oferece o subcomando `regulatory-engine healthcheck`, que consulta o `/ready` local e sai com `0` ou `1`.
+No compose, o motor tem `healthcheck` baseado no readiness — é o que permite ao gateway declarar `depends_on: condition: service_healthy` e só subir com o motor pronto. Como a imagem distroless não tem `curl` nem `wget`, o próprio binário oferece o subcomando `regulatory-engine healthcheck`, que consulta o `/ready` local e sai com `0` ou `1`.
 
 **Encerramento gracioso.** Ao receber `SIGTERM` (enviado por `docker stop` e orquestradores) ou `SIGINT`, o motor para de aceitar conexões, espera as requisições em andamento terminarem (até 10s, `shutdownTimeout`) e só então desconecta o MongoDB. Dois cuidados:
 
@@ -274,10 +354,10 @@ Verificação manual (Docker): com o Mongo de pé, `docker stop` encerra em meno
 
 ### 8.4. Demonstração
 
-- **README** com contexto de negócio, diagrama, como rodar (`docker compose up`, sem Go instalado), exemplos de chamada em curl e o **roadmap**.
+- **README** com contexto de negócio, diagrama, como rodar (`docker compose up`, sem Go nem PHP instalados), exemplos de chamada em curl, como consultar os dois bancos e o **roadmap**.
+- **Catálogo de cenários** ([`cenarios_de_teste.md`](cenarios_de_teste.md) e [`.http`](cenarios_de_teste.http)) para testar o motor e o gateway na prática.
 
 ## 9. Roadmap (evolução futura)
 
-1. **Gateway PHP + Slim**: serviço que representa o sistema legado e chama o motor Go (integração legado ↔ novo).
-2. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
-3. **Regras em banco com vigência**: hoje cada avaliação já registra o hash da parametrização usada (`rules_version`, seção 7); a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
+1. Domínios adicionais: Limites Bacen/Pix, LGPD, SCR.
+2. **Regras em banco com vigência**: hoje cada avaliação já registra o hash da parametrização usada (`rules_version`, seção 7); a evolução é manter o histórico de versões com datas de vigência, para avaliar uma operação pelas regras válidas na data dela.
