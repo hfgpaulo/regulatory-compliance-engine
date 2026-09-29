@@ -1,6 +1,12 @@
 # Orquestração local: MongoDB e o motor Go (sistema atual), o gateway PHP e o
 # MySQL (sistema legado). Para desenvolver o motor com hot reload, suba só o
 # MongoDB (make dev).
+#
+# Nome fixo do projeto: a rede (regulatory-compliance-engine_default) e os
+# volumes têm o mesmo nome em qualquer pasta de clone. O Newman (make postman)
+# se conecta a essa rede.
+name: regulatory-compliance-engine
+
 services:
   mongodb:
     image: mongo:7

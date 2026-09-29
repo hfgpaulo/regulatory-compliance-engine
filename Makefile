@@ -9,7 +9,7 @@ GATEWAY_RUN = docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
 # (VAR=valor comando): no Windows, chamado pelo PowerShell, o make executa as
 # receitas no cmd.exe, que nao entende a forma inline.
 # MSYS_NO_PATHCONV evita que o Git Bash reescreva os caminhos do docker run.
-gateway-install gateway-test: export MSYS_NO_PATHCONV := 1
+gateway-install gateway-test postman: export MSYS_NO_PATHCONV := 1
 test-integration: export MONGO_TEST_URI := mongodb://admin:admin123@localhost:27017
 
 # O E2E e um script bash. No Windows, o primeiro "bash" do PATH pode ser o do
@@ -21,7 +21,7 @@ else
 BASH = bash
 endif
 
-.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e
+.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e postman
 
 help: ## Mostra esta ajuda (usa grep e awk: no Windows, rode pelo Git Bash)
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -70,6 +70,9 @@ gateway-install: ## Instala as dependencias do gateway (composer.lock)
 e2e: ## Sobe a stack e roda o E2E (propostas pelo gateway ate o MySQL e o MongoDB)
 	docker compose up -d --build --wait
 	$(BASH) scripts/e2e.sh
+
+postman: ## Roda a collection do Postman (Newman, em container) contra a stack no ar
+	docker run --rm --network regulatory-compliance-engine_default -v "$(CURDIR)/docs/postman:/etc/newman" postman/newman:6-alpine run regulatory-compliance-engine.postman_collection.json --env-var baseUrl=http://regulatory-engine:3000/api/v1 --env-var gatewayUrl=http://legacy-gateway --reporter-cli-no-banner
 
 gateway-test: gateway-install ## Analise estatica (PHPStan) e testes (PHPUnit) do gateway
 	$(GATEWAY_RUN) php:8.3-cli sh -c "vendor/bin/phpstan analyse --no-progress && vendor/bin/phpunit"

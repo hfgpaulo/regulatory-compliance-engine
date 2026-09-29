@@ -1,0 +1,1052 @@
+{
+  "info": {
+    "name": "Regulatory Compliance Engine",
+    "description": "Cenários do motor (porta 3000) e do gateway legado (porta 8080), com testes em cada requisição.\n\nPré-requisito: stack no ar (`docker compose up -d --build --wait` ou `make up`).\n\nOs cenários numerados (H, C, V, P, G) testam os valores originais: ao alterar uma requisição, os testes dela passam a falhar, o que é esperado. Para experimentar valores, use a pasta \"Livre\" ou duplique um cenário. Para rodar tudo: botão Run na collection (Collection Runner).\n\nDescrição de cada cenário: docs/cenarios_de_teste.md (fonte da verdade).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1"
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "c01Id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Motor (porta 3000)",
+      "item": [
+        {
+          "name": "H01 — liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "H02 — readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/ready",
+            "description": "503 se o MongoDB estiver fora do ar."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ready\", () => pm.expect(pm.response.json().status).to.eql(\"ready\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C01 — transferência simples, contraparte sem risco",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "Guarda o id em c01Id, usado pelo P02.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"1 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(1));",
+                  "pm.test(\"IOF = 19.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"19.00\"));",
+                  "pm.collectionVariables.set(\"c01Id\", body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C02 — arredondamento do IOF (23,45683 -> 23,46)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1234.57\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"1 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(1));",
+                  "pm.test(\"IOF = 23.46\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"23.46\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C03 — logo abaixo do teto do COAF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"9999.99\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"1 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(1));",
+                  "pm.test(\"IOF = 190.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"190.00\"));",
+                  "pm.test(\"sem comunicacao por teto\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\")).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C04 — exatamente no teto do COAF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"10000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"IOF = 190.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"190.00\"));",
+                  "pm.test(\"PLD reportavel = 50000.00\", () => pm.expect(results.find(r => r.domain === \"PLD_COAF\" && r.calculated_amount).calculated_amount).to.eql(\"50000.00\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C05 — acima do teto do COAF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"75000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"IOF = 1425.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"1425.00\"));",
+                  "pm.test(\"PLD reportavel = 375000.00\", () => pm.expect(results.find(r => r.domain === \"PLD_COAF\" && r.calculated_amount).calculated_amount).to.eql(\"375000.00\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C06 — contraparte PEP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": true\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"IOF = 19.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"19.00\"));",
+                  "pm.test(\"screening: pessoa exposta politicamente\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\" && r.detail.includes(\"pessoa exposta politicamente\"))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C07 — contraparte sancionada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"Ivan Petrov\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"IOF = 19.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"19.00\"));",
+                  "pm.test(\"screening: consta em lista de sancionados\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\" && r.detail.includes(\"consta em lista de sancionados\"))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C08 — sancionada com caixa e espaços diferentes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"  ivan PETROV \",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"screening: consta em lista de sancionados\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\" && r.detail.includes(\"consta em lista de sancionados\"))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C09 — contraparte PEP e sancionada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"Mara Costa\",\n      \"pep\": true\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"2 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(2));",
+                  "pm.test(\"screening: e PEP e consta em lista de sancionados\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\" && r.detail.includes(\"e PEP e consta em lista de sancionados\"))).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "C10 — todos os domínios juntos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"75000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"Mara Costa\",\n      \"pep\": true\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "const results = body.report.results;",
+                  "const byDomain = (d, s) => results.find(r => r.domain === d && (!s || r.status === s));",
+                  "pm.test(\"nao conforme (IOF sempre exige adaptacao)\", () => pm.expect(body.report.compliant).to.eql(false));",
+                  "pm.test(\"rules_version presente\", () => pm.expect(body.rules_version).to.match(/^sha256:/));",
+                  "pm.test(\"3 resultado(s) no relatorio\", () => pm.expect(results).to.have.lengthOf(3));",
+                  "pm.test(\"IOF = 1425.00\", () => pm.expect(byDomain(\"IOF\").calculated_amount).to.eql(\"1425.00\"));",
+                  "pm.test(\"PLD reportavel = 375000.00\", () => pm.expect(results.find(r => r.domain === \"PLD_COAF\" && r.calculated_amount).calculated_amount).to.eql(\"375000.00\"));",
+                  "pm.test(\"screening: e PEP e consta em lista de sancionados\", () => pm.expect(results.some(r => r.domain === \"PLD_COAF\" && r.detail.includes(\"e PEP e consta em lista de sancionados\"))).to.eql(true));",
+                  "pm.test(\"3 adaptacoes exigidas\", () => pm.expect(body.report.required_adaptations).to.have.lengthOf(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V01 — corpo vazio não vira conforme",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"7 campos invalidos\", () => pm.expect(pm.response.json().details).to.have.lengthOf(7));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V02 — JSON malformado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{ nao e json",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"corpo invalido\", () => pm.expect(pm.response.json().error).to.eql(\"corpo da requisicao invalido\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V03 — moeda não suportada",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"BRL\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "const fields = pm.response.json().details.map(d => d.field);",
+                  "pm.test(\"campo operation.currency apontado\", () => pm.expect(fields).to.include(\"operation.currency\"));",
+                  "pm.test(\"mensagem de moeda nao suportada\", () => pm.expect(pm.response.json().details[0].message).to.include(\"nao suportada\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V04 — mais de 2 casas decimais",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.005\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "const fields = pm.response.json().details.map(d => d.field);",
+                  "pm.test(\"campo operation.amount apontado\", () => pm.expect(fields).to.include(\"operation.amount\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V05 — vários erros de uma vez",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"0\",\n    \"currency\": \"USD\",\n    \"method\": \"pix\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "const fields = pm.response.json().details.map(d => d.field);",
+                  "pm.test(\"campo operation.amount apontado\", () => pm.expect(fields).to.include(\"operation.amount\"));",
+                  "pm.test(\"campo operation.method apontado\", () => pm.expect(fields).to.include(\"operation.method\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "V06 — origem fora do ISO 3166-1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"usa\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"1000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "const fields = pm.response.json().details.map(d => d.field);",
+                  "pm.test(\"campo product.origin apontado\", () => pm.expect(fields).to.include(\"product.origin\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "P01 — lista as avaliações mais recentes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/evaluations",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "pm.test(\"e uma lista\", () => pm.expect(list).to.be.an(\"array\"));",
+                  "pm.test(\"mais recente primeiro\", () => { if (list.length > 1) pm.expect(list[0].created_at >= list[1].created_at).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "P02 — busca a avaliação criada no C01",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/evaluations/{{c01Id}}",
+            "description": "Rode o C01 antes: ele guarda o id em c01Id."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"e a avaliacao do C01\", () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get(\"c01Id\")));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "P03 — id inexistente",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/evaluations/nao-existe",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"nao encontrada\", () => pm.expect(pm.response.json().error).to.eql(\"avaliacao nao encontrada\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gateway legado (porta 8080)",
+      "item": [
+        {
+          "name": "G01 — proposta aceita",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "Aparece na tabela propostas do MySQL legado (DBeaver, porta 3307).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto\": {\n    \"tipo\": \"EMPRESTIMO_PESSOAL\",\n    \"pais_origem\": \"US\",\n    \"moeda_origem\": \"USD\"\n  },\n  \"operacao\": {\n    \"valor_centavos\": 100000,\n    \"moeda\": \"USD\",\n    \"modalidade\": \"TRANSFERENCIA_INTERNACIONAL\",\n    \"contraparte\": {\n      \"nome\": \"John Doe\",\n      \"pep\": \"N\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"situacao PENDENTE_ADAPTACAO\", () => pm.expect(body.situacao).to.eql(\"PENDENTE_ADAPTACAO\"));",
+                  "pm.test(\"iof_centavos = 1900\", () => pm.expect(body.iof_centavos).to.eql(1900));",
+                  "pm.test(\"protocolo = id da avaliacao no motor\", () => pm.expect(body.protocolo).to.have.lengthOf(24));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "G02 — todos os domínios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto\": {\n    \"tipo\": \"EMPRESTIMO_PESSOAL\",\n    \"pais_origem\": \"US\",\n    \"moeda_origem\": \"USD\"\n  },\n  \"operacao\": {\n    \"valor_centavos\": 7500000,\n    \"moeda\": \"USD\",\n    \"modalidade\": \"TRANSFERENCIA_INTERNACIONAL\",\n    \"contraparte\": {\n      \"nome\": \"Mara Costa\",\n      \"pep\": \"S\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"situacao COMUNICAR_COAF\", () => pm.expect(body.situacao).to.eql(\"COMUNICAR_COAF\"));",
+                  "pm.test(\"iof_centavos = 142500\", () => pm.expect(body.iof_centavos).to.eql(142500));",
+                  "pm.test(\"3 exigencias\", () => pm.expect(body.exigencias).to.have.lengthOf(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "G03 — formato legado inválido (rejeitado pelo gateway)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto\": {\n    \"tipo\": \"EMPRESTIMO_PESSOAL\",\n    \"pais_origem\": \"US\",\n    \"moeda_origem\": \"USD\"\n  },\n  \"operacao\": {\n    \"valor_centavos\": 75000.5,\n    \"moeda\": \"USD\",\n    \"modalidade\": \"TRANSFERENCIA_INTERNACIONAL\",\n    \"contraparte\": {\n      \"nome\": \"John Doe\",\n      \"pep\": \"talvez\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "const campos = pm.response.json().campos.map(c => c.campo);",
+                  "pm.test(\"campo operacao.valor_centavos apontado\", () => pm.expect(campos).to.include(\"operacao.valor_centavos\"));",
+                  "pm.test(\"campo operacao.contraparte.pep apontado\", () => pm.expect(campos).to.include(\"operacao.contraparte.pep\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "G04 — rejeitada pelo motor, erro traduzido",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto\": {\n    \"tipo\": \"EMPRESTIMO_PESSOAL\",\n    \"pais_origem\": \"US\",\n    \"moeda_origem\": \"USD\"\n  },\n  \"operacao\": {\n    \"valor_centavos\": 100000,\n    \"moeda\": \"BRL\",\n    \"modalidade\": \"TRANSFERENCIA_INTERNACIONAL\",\n    \"contraparte\": {\n      \"nome\": \"John Doe\",\n      \"pep\": \"N\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 422\", () => pm.response.to.have.status(422));",
+                  "const campos = pm.response.json().campos.map(c => c.campo);",
+                  "pm.test(\"campo operacao.moeda apontado\", () => pm.expect(campos).to.include(\"operacao.moeda\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "G05 — corpo não é JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{ nao e json",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "G06 — liveness do gateway",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayUrl}}/health",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"service legacy-gateway\", () => pm.expect(pm.response.json().service).to.eql(\"legacy-gateway\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Livre (experimente)",
+      "item": [
+        {
+          "name": "Motor — avaliação (altere à vontade)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/evaluate",
+            "description": "Sem testes de valor: troque amount, currency, name, pep... e veja o veredito.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"product\": {\n    \"type\": \"personal_loan\",\n    \"origin\": \"US\",\n    \"origin_currency\": \"USD\"\n  },\n  \"operation\": {\n    \"amount\": \"75000.00\",\n    \"currency\": \"USD\",\n    \"method\": \"international_transfer\",\n    \"counterparty\": {\n      \"name\": \"John Doe\",\n      \"pep\": false\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"resposta em JSON\", () => pm.response.json());"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gateway — proposta legada (altere à vontade)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{gatewayUrl}}/propostas",
+            "description": "Sem testes de valor: troque valor_centavos, moeda, pep... e veja a resposta legada.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produto\": {\n    \"tipo\": \"EMPRESTIMO_PESSOAL\",\n    \"pais_origem\": \"US\",\n    \"moeda_origem\": \"USD\"\n  },\n  \"operacao\": {\n    \"valor_centavos\": 7500000,\n    \"moeda\": \"USD\",\n    \"modalidade\": \"TRANSFERENCIA_INTERNACIONAL\",\n    \"contraparte\": {\n      \"nome\": \"John Doe\",\n      \"pep\": \"N\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"resposta em JSON\", () => pm.response.json());"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
