@@ -21,7 +21,7 @@ else
 BASH = bash
 endif
 
-.PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e postman
+.PHONY: help up down reset mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e postman
 
 help: ## Mostra esta ajuda (usa grep e awk: no Windows, rode pelo Git Bash)
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -31,6 +31,13 @@ up: ## Sobe a stack completa em containers (MongoDB + motor + gateway)
 
 down: ## Para a stack completa
 	docker compose down
+
+# Apaga so os volumes DESTE projeto (regulatory-compliance-engine_*): o
+# "down -v" do compose e restrito ao projeto. Nao usar "docker volume prune"
+# nem "docker system prune", que afetam volumes de todos os projetos.
+reset: ## Apaga os dados do MongoDB e do MySQL deste projeto e sobe a stack limpa
+	docker compose down -v
+	docker compose up -d --build --wait
 
 mongo-up: ## Sobe o MongoDB (espera ficar healthy)
 	docker compose up -d --wait mongodb
