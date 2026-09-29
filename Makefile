@@ -3,12 +3,18 @@ GATEWAY = legacy-gateway
 
 # Roda comandos do gateway em containers (nao exige PHP local). O composer:2
 # instala as dependencias; os testes rodam no mesmo PHP da imagem (8.3).
-# MSYS_NO_PATHCONV evita que o Git Bash no Windows reescreva os caminhos.
-GATEWAY_RUN = MSYS_NO_PATHCONV=1 docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
+GATEWAY_RUN = docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
+
+# Variaveis de ambiente vao por "export" do proprio make, e nao inline
+# (VAR=valor comando): no Windows, chamado pelo PowerShell, o make executa as
+# receitas no cmd.exe, que nao entende a forma inline.
+# MSYS_NO_PATHCONV evita que o Git Bash reescreva os caminhos do docker run.
+gateway-install gateway-test: export MSYS_NO_PATHCONV := 1
+test-integration: export MONGO_TEST_URI := mongodb://admin:admin123@localhost:27017
 
 .PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e
 
-help: ## Mostra esta ajuda
+help: ## Mostra esta ajuda (usa grep e awk: no Windows, rode pelo Git Bash)
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
 
 up: ## Sobe a stack completa em containers (MongoDB + motor + gateway)
@@ -38,7 +44,7 @@ test: ## Executa os testes (integracao do repositorio e pulada sem MONGO_TEST_UR
 
 test-integration: ## Sobe o MongoDB e executa todos os testes, incluindo integracao
 	docker compose up -d --wait mongodb
-	cd $(ENGINE) && MONGO_TEST_URI=mongodb://admin:admin123@localhost:27017 go test -count=1 ./...
+	cd $(ENGINE) && go test -count=1 ./...
 
 tidy: ## Ajusta as dependencias
 	cd $(ENGINE) && go mod tidy
