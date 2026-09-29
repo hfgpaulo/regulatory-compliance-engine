@@ -83,11 +83,11 @@ Todos os comandos abaixo rodam a partir da **raiz do repositório**, onde fica o
 | `go -C regulatory-engine test ./...` | Motor: unitários, handlers (dublê em memória, sem MongoDB) e aceitação (cenários regulatórios com o `rules.json` real) | Go 1.25 |
 | `make test-integration` | O mesmo, mais a integração do repositório contra um MongoDB real (sobe o Mongo do compose) | Go 1.25, Docker, `make` |
 | `make gateway-test` | Gateway: PHPStan e PHPUnit, em container, sem PHP local | Docker, `make` |
-| `make e2e` | Contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB | Docker, `make`, bash |
+| `make e2e` | Contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB | Docker, `make`, bash (no Windows, Git for Windows) |
 
 Sem `MONGO_TEST_URI`, os testes de integração do repositório são **pulados**, e o `go test` mostra o pacote como `ok` mesmo assim. Use `-v` para ver o `SKIP`, ou rode o `make test-integration`.
 
-> **Windows:** os alvos precisam do **GNU make**, que não vem instalado (ex.: `choco install make` ou `scoop install make`; o MinGW instala como `mingw32-make`). Confira com `make --version`: se não aparecer "GNU Make", outro programa chamado `make` está antes no PATH. `test-integration` e `gateway-test` funcionam no PowerShell e no Git Bash. O `e2e` e o `help` precisam do **Git Bash**: o E2E é um script bash, e rodado pelo PowerShell pode cair no bash do WSL, que é outro ambiente.
+> **Windows:** os alvos precisam do **GNU make**, que não vem instalado (ex.: `choco install make` ou `scoop install make`; o MinGW instala como `mingw32-make`). Confira com `make --version`: se não aparecer "GNU Make", outro programa chamado `make` está antes no PATH. Todos os alvos funcionam no PowerShell e no Git Bash, exceto o `help`, que usa `grep` e `awk` e precisa do Git Bash. O `e2e` é um script bash: no Windows, o `make` usa automaticamente o bash do **Git for Windows**, que precisa estar instalado, e não o do WSL, que não enxerga o Docker Desktop.
 
 No CI, a cada push/PR: motor (`gofmt`, `build`, `vet`, `test` com integração), gateway (PHPStan, PHPUnit), build das imagens e E2E.
 
