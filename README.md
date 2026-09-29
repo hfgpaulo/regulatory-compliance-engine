@@ -32,6 +32,15 @@ docker compose up -d --build --wait
 
 Ou `make up` / `make down`. A imagem do motor é multi-stage (binário estático sobre distroless, usuário sem privilégio) e leva o `rules.json` embutido; a do gateway é `php:8.3-apache` e cria a tabela do banco legado ao subir.
 
+Confira que os serviços respondem:
+
+```bash
+curl http://localhost:3000/api/v1/ready
+curl http://localhost:8080/health
+```
+
+> **Windows:** no PowerShell, `curl` é um apelido de `Invoke-WebRequest`, outro comando. Use `curl.exe` para as chamadas simples acima. Para os exemplos com corpo JSON (`-d '{...}'`), use o **Git Bash**, porque o PowerShell altera as aspas, ou o arquivo [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http) no VS Code.
+
 ### Consultar os bancos
 
 | Banco | Ferramenta | Conexão |
@@ -67,30 +76,18 @@ curl http://localhost:3000/api/v1/health
 
 ## Testes
 
-Testes unitários, de handler e de aceitação (cenários regulatórios com o `rules.json` real). Não exigem MongoDB — os handlers são testados contra a interface de persistência com um dublê em memória:
+Todos os comandos abaixo rodam a partir da **raiz do repositório**, onde fica o `Makefile`.
 
-```bash
-cd regulatory-engine
-go test ./...
-```
+| Comando | O que roda | Requer |
+|---|---|---|
+| `go -C regulatory-engine test ./...` | Motor: unitários, handlers (dublê em memória, sem MongoDB) e aceitação (cenários regulatórios com o `rules.json` real) | Go 1.25 |
+| `make test-integration` | O mesmo, mais a integração do repositório contra um MongoDB real (sobe o Mongo do compose) | Go 1.25, Docker, `make` |
+| `make gateway-test` | Gateway: PHPStan e PHPUnit, em container, sem PHP local | Docker, `make` |
+| `make e2e` | Contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB | Docker, `make`, bash |
 
-Os testes de integração do repositório rodam contra um MongoDB real e se pulam sem `MONGO_TEST_URI`. Para rodá-los localmente (sobe o Mongo do compose):
+Sem `MONGO_TEST_URI`, os testes de integração do repositório são **pulados**, e o `go test` mostra o pacote como `ok` mesmo assim. Use `-v` para ver o `SKIP`, ou rode o `make test-integration`.
 
-```bash
-make test-integration
-```
-
-Gateway (PHP), em container — não exige PHP local:
-
-```bash
-make gateway-test
-```
-
-E2E — o contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB:
-
-```bash
-make e2e
-```
+> **Windows:** os alvos precisam do **GNU make**, que não vem instalado (ex.: `choco install make` ou `scoop install make`; o MinGW instala como `mingw32-make`). Confira com `make --version`: se não aparecer "GNU Make", outro programa chamado `make` está antes no PATH. `test-integration` e `gateway-test` funcionam no PowerShell e no Git Bash. O `e2e` e o `help` precisam do **Git Bash**: o E2E é um script bash, e rodado pelo PowerShell pode cair no bash do WSL, que é outro ambiente.
 
 No CI, a cada push/PR: motor (`gofmt`, `build`, `vet`, `test` com integração), gateway (PHPStan, PHPUnit), build das imagens e E2E.
 
