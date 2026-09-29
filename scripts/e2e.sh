@@ -2,14 +2,27 @@
 # Teste E2E do contrato entre o gateway legado (PHP) e o motor (Go).
 #
 # Com a stack no ar (docker compose up), envia propostas no formato legado ao
-# gateway e confere: a resposta legada, a linha no MySQL legado e a avaliação
-# no MongoDB do motor, ligadas pelo mesmo protocolo. Cada lado testa contra um
-# dublê do outro; só este teste garante que os dois concordam.
+# gateway e confere: a resposta legada, a avaliação gravada no motor (consultada
+# pela API dele, como caixa-preta) e a linha no MySQL legado, ligadas pelo mesmo
+# protocolo. Cada lado testa contra um dublê do outro; só este teste garante
+# que os dois concordam.
 #
 # Uso: bash scripts/e2e.sh   (ou make e2e, que sobe a stack antes)
+# No Windows, rode pelo Git Bash.
 set -uo pipefail
 
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:8080}"
+ENGINE_URL="${ENGINE_URL:-http://localhost:3000}"
+
+# O MySQL legado só é consultável via docker (o gateway não expõe consulta).
+# Sem docker acessível, as checagens de banco falhariam com mensagens
+# enganosas; melhor parar antes, dizendo o motivo.
+if ! docker exec legacy-mysql true >/dev/null 2>&1; then
+    echo "E2E: docker inacessivel neste shell ou stack fora do ar (container legacy-mysql)."
+    echo "     Suba a stack com 'make up'. No Windows, rode pelo Git Bash: o bash chamado"
+    echo "     pelo PowerShell pode ser o do WSL, que nao enxerga o Docker Desktop."
+    exit 1
+fi
 failures=0
 accepted=()
 
@@ -49,8 +62,8 @@ mysql_count() {
     docker exec legacy-mysql mysql -ulegacy -plegacy123 legacy -N -e "$1" 2>/dev/null
 }
 
-mongo_count() {
-    docker exec regulatory-mongodb mongosh -u admin -p admin123 --authenticationDatabase admin --quiet regulatory --eval "$1"
+engine_status() { # status HTTP de GET /evaluations/{protocolo} no motor
+    curl -s -o /dev/null -w '%{http_code}' "$ENGINE_URL/api/v1/evaluations/$1"
 }
 
 accepted_case() { # id, centavos, nome, pep, situação esperada, IOF esperado, exigências esperadas
@@ -72,7 +85,7 @@ rejected_case() { # id, descrição, corpo, campo legado esperado
     if printf '%s' "$BODY" | grep -q "\"campo\":\"$4\""; then ok "campo $4 apontado"; else fail "campo $4 nao apontado: $BODY"; fi
 }
 
-echo "Gateway: $GATEWAY_URL"
+echo "Gateway: $GATEWAY_URL | Motor: $ENGINE_URL"
 rows_before=$(mysql_count "SELECT COUNT(*) FROM propostas")
 
 accepted_case C01 100000 "John Doe" N PENDENTE_ADAPTACAO 1900 1
@@ -84,7 +97,7 @@ rejected_case G04 "moeda nao suportada (rejeitada pelo motor, traduzida)" "$(pro
 echo "Persistencia: aceitas nos dois bancos, rejeitadas em nenhum"
 for protocol in "${accepted[@]}"; do
     check "MySQL legado tem $protocol" 1 "$(mysql_count "SELECT COUNT(*) FROM propostas WHERE protocolo='$protocol'")"
-    check "MongoDB do motor tem $protocol" 1 "$(mongo_count "db.evaluations.countDocuments({_id:'$protocol'})")"
+    check "motor devolve $protocol (MongoDB)" 200 "$(engine_status "$protocol")"
 done
 rows_after=$(mysql_count "SELECT COUNT(*) FROM propostas")
 check "linhas novas no MySQL (so as 3 aceitas)" 3 "$((rows_after - rows_before))"
