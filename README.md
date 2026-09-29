@@ -50,6 +50,14 @@ curl http://localhost:8080/health
 
 Credenciais de desenvolvimento, não secretas. No DBeaver, se aparecer "Public Key Retrieval is not allowed", defina `allowPublicKeyRetrieval=true` nas propriedades do driver.
 
+Os dados ficam em volumes Docker e sobrevivem ao `make down`. O `make e2e` e o `make postman` rodam contra essa mesma stack e **gravam dados reais** nos dois bancos, como qualquer cliente faria. Para começar do zero:
+
+```bash
+make reset
+```
+
+O `make reset` apaga apenas os volumes deste projeto (`regulatory-compliance-engine_*`) e sobe a stack limpa. Volumes de outros projetos Docker não são afetados.
+
 ### Desenvolvimento (hot reload)
 
 Pré-requisitos: **Go 1.25+**, **Docker** e [Air](https://github.com/air-verse/air). Suba só o MongoDB e rode a API localmente — não use junto com `make up`, pois ambos ocupam a porta 3000.

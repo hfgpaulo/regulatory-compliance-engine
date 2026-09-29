@@ -4,7 +4,7 @@ Catálogo de cenários para testar o sistema na prática, com a entrada e o resu
 
 ## Como rodar
 
-1. Suba a stack: `make up` (todos os serviços em containers). O `make dev` sobe só o motor, sem o gateway.
+1. Suba a stack: `make up` (todos os serviços em containers). O `make dev` sobe só o motor, sem o gateway. Para começar com os bancos vazios, use `make reset`: ele apaga os dados de execuções anteriores, inclusive os gravados pelo `make e2e` e pelo `make postman`.
 2. Escolha a forma de disparar as requisições:
    - **Postman**: *Import* → [`postman/regulatory-compliance-engine.postman_collection.json`](postman/regulatory-compliance-engine.postman_collection.json). Os cenários vêm com os mesmos IDs e com testes em cada requisição (aba *Test Results*); *Run* na collection roda todos. Os testes conferem os valores originais: para experimentar outros valores, use a pasta **Livre (experimente)**.
    - **VS Code + REST Client** (extensão `humao.rest-client`): abra [`cenarios_de_teste.http`](cenarios_de_teste.http) e clique em **Send Request** acima de cada cenário. O resultado esperado está no título de cada um; para outros valores, use a seção **Livre**, no fim do arquivo.
