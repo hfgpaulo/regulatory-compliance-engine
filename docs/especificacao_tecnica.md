@@ -219,6 +219,7 @@ regulatory-compliance-engine/
 │   ├── especificacao_tecnica.md
 │   ├── cenarios_de_teste.md      # catálogo de cenários (entrada → resultado esperado)
 │   ├── cenarios_de_teste.http    # os mesmos cenários, executáveis (REST Client)
+│   ├── postman/                  # os mesmos cenários como collection do Postman, com testes
 │   └── arquitetura.png           # diagrama (fonte: arquitetura.svg)
 ├── regulatory-engine/            # Go + Fiber
 │   ├── cmd/api/main.go           # ponto de entrada (montagem da aplicação)
@@ -319,7 +320,7 @@ Um workflow de **GitHub Actions** roda a cada `push` na `main` e em todo *pull r
 3. **`go vet ./...`** — análise estática de problemas comuns.
 4. **`go test ./...`** — executa a suíte descrita acima, incluindo os testes de integração do repositório: o job sobe um MongoDB 7 como *service container* e define `MONGO_TEST_URI`.
 
-Em paralelo, três outros jobs: a construção da imagem Docker do motor (`docker build`), para que uma quebra no Dockerfile seja detectada no mesmo push, e não só no deploy; o **gateway** (PHP 8.3: PHPStan, PHPUnit e build da imagem); e o **E2E**, que sobe a stack completa e roda o `scripts/e2e.sh`, mostrando os logs dos containers se falhar.
+Em paralelo, três outros jobs: a construção da imagem Docker do motor (`docker build`), para que uma quebra no Dockerfile seja detectada no mesmo push, e não só no deploy; o **gateway** (PHP 8.3: PHPStan, PHPUnit e build da imagem); e o **E2E**, que sobe a stack completa, roda o `scripts/e2e.sh` e a collection do Postman (Newman), mostrando os logs dos containers se falhar.
 
 O ambiente é fixado em Go 1.25 com cache de módulos. O valor concreto: a verificação deixa de depender da disciplina manual do desenvolvedor — um arquivo esquecido no commit, um `go.sum` inconsistente ou código desformatado são barrados antes de entrar na `main`. O estado do pipeline é exposto por um *badge* no README.
 
@@ -355,7 +356,7 @@ Verificação manual (Docker): com o Mongo de pé, `docker stop` encerra em meno
 ### 8.4. Demonstração
 
 - **README** com contexto de negócio, diagrama, como rodar (`docker compose up`, sem Go nem PHP instalados), exemplos de chamada em curl, como consultar os dois bancos e o **roadmap**.
-- **Catálogo de cenários** ([`cenarios_de_teste.md`](cenarios_de_teste.md) e [`.http`](cenarios_de_teste.http)) para testar o motor e o gateway na prática.
+- **Catálogo de cenários** ([`cenarios_de_teste.md`](cenarios_de_teste.md), a fonte da verdade) executável pelo VS Code ([`.http`](cenarios_de_teste.http)) e pelo **Postman** ([collection](postman/regulatory-compliance-engine.postman_collection.json), com testes em cada requisição e uma pasta "Livre" para experimentar valores). A collection roda no CI via Newman (`make postman`), o que impede que ela fique desatualizada em relação à API.
 
 ## 9. Roadmap (evolução futura)
 

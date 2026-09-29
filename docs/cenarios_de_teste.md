@@ -1,12 +1,13 @@
 # Cenários de teste da API
 
-Catálogo de cenários para testar o sistema na prática, com a entrada e o resultado esperado de cada um — direto no motor (`regulatory-engine`, porta 3000) e pelo sistema legado (`legacy-gateway`, porta 8080). Os cenários regulatórios (**C01–C10**) são os mesmos do teste automatizado de aceitação (`internal/rules/acceptance_test.go`), e os do gateway (**G01–G04**) rodam no E2E (`scripts/e2e.sh`): o que você vê aqui à mão é o que o CI garante a cada push.
+Catálogo de cenários para testar o sistema na prática, com a entrada e o resultado esperado de cada um. Este arquivo é a **fonte da verdade**: o `.http` e a collection do Postman executam os mesmos cenários — direto no motor (`regulatory-engine`, porta 3000) e pelo sistema legado (`legacy-gateway`, porta 8080). Os cenários regulatórios (**C01–C10**) são os mesmos do teste automatizado de aceitação (`internal/rules/acceptance_test.go`), e os do gateway (**G01–G04**) rodam no E2E (`scripts/e2e.sh`): o que você vê aqui à mão é o que o CI garante a cada push.
 
 ## Como rodar
 
 1. Suba a stack: `make up` (todos os serviços em containers). O `make dev` sobe só o motor, sem o gateway.
 2. Escolha a forma de disparar as requisições:
-   - **VS Code + REST Client** (extensão `humao.rest-client`): abra [`cenarios_de_teste.http`](cenarios_de_teste.http) e clique em **Send Request** acima de cada cenário. É o caminho mais prático.
+   - **Postman**: *Import* → [`postman/regulatory-compliance-engine.postman_collection.json`](postman/regulatory-compliance-engine.postman_collection.json). Os cenários vêm com os mesmos IDs e com testes em cada requisição (aba *Test Results*); *Run* na collection roda todos. Os testes conferem os valores originais: para experimentar outros valores, use a pasta **Livre (experimente)**.
+   - **VS Code + REST Client** (extensão `humao.rest-client`): abra [`cenarios_de_teste.http`](cenarios_de_teste.http) e clique em **Send Request** acima de cada cenário. O resultado esperado está no título de cada um; para outros valores, use a seção **Livre**, no fim do arquivo.
    - **curl** (Git Bash no Windows — no PowerShell, `curl` é outro comando e as aspas do JSON quebram). Requisição base, usada no C01:
 
      ```bash

@@ -5,6 +5,7 @@
 # do teste automatizado internal/rules/acceptance_test.go; G01–G04 rodam no E2E.
 #
 # Pré-requisito: stack no ar (make up). Os cenários G* precisam do gateway.
+# Para testar outros valores, use a seção "Livre", no fim do arquivo.
 
 @baseUrl = http://localhost:3000/api/v1
 @gatewayUrl = http://localhost:8080
@@ -226,3 +227,29 @@ Content-Type: {{contentType}}
 
 ### G06 — gateway: liveness (esperado: 200, service "legacy-gateway")
 GET {{gatewayUrl}}/health
+
+# =============================================================================
+# Livre (experimente): altere os valores à vontade e reenvie.
+# Os cenários acima reproduzem os valores do catálogo; estas duas requisições
+# existem para testar outros casos (troque amount, currency, name, pep...).
+# =============================================================================
+
+### Livre — motor: avaliação
+POST {{baseUrl}}/evaluate
+Content-Type: {{contentType}}
+
+{
+  "product": { "type": "personal_loan", "origin": "US", "origin_currency": "USD" },
+  "operation": { "amount": "75000.00", "currency": "USD", "method": "international_transfer",
+                 "counterparty": { "name": "John Doe", "pep": false } }
+}
+
+### Livre — gateway: proposta legada
+POST {{gatewayUrl}}/propostas
+Content-Type: {{contentType}}
+
+{
+  "produto": { "tipo": "EMPRESTIMO_PESSOAL", "pais_origem": "US", "moeda_origem": "USD" },
+  "operacao": { "valor_centavos": 7500000, "moeda": "USD", "modalidade": "TRANSFERENCIA_INTERNACIONAL",
+                "contraparte": { "nome": "John Doe", "pep": "N" } }
+}

@@ -84,14 +84,20 @@ Todos os comandos abaixo rodam a partir da **raiz do repositório**, onde fica o
 | `make test-integration` | O mesmo, mais a integração do repositório contra um MongoDB real (sobe o Mongo do compose) | Go 1.25, Docker, `make` |
 | `make gateway-test` | Gateway: PHPStan e PHPUnit, em container, sem PHP local | Docker, `make` |
 | `make e2e` | Contrato entre gateway e motor: sobe a stack e passa propostas reais pelo gateway, conferindo a resposta, o MySQL e o MongoDB | Docker, `make`, bash (no Windows, Git for Windows) |
+| `make postman` | A collection do Postman inteira (29 requisições com testes) via Newman, contra a stack no ar | Docker, `make` |
 
 Sem `MONGO_TEST_URI`, os testes de integração do repositório são **pulados**, e o `go test` mostra o pacote como `ok` mesmo assim. Use `-v` para ver o `SKIP`, ou rode o `make test-integration`.
 
 > **Windows:** os alvos precisam do **GNU make**, que não vem instalado (ex.: `choco install make` ou `scoop install make`; o MinGW instala como `mingw32-make`). Confira com `make --version`: se não aparecer "GNU Make", outro programa chamado `make` está antes no PATH. Todos os alvos funcionam no PowerShell e no Git Bash, exceto o `help`, que usa `grep` e `awk` e precisa do Git Bash. O `e2e` é um script bash: no Windows, o `make` usa automaticamente o bash do **Git for Windows**, que precisa estar instalado, e não o do WSL, que não enxerga o Docker Desktop.
 
-No CI, a cada push/PR: motor (`gofmt`, `build`, `vet`, `test` com integração), gateway (PHPStan, PHPUnit), build das imagens e E2E.
+No CI, a cada push/PR: motor (`gofmt`, `build`, `vet`, `test` com integração), gateway (PHPStan, PHPUnit), build das imagens, E2E e a collection do Postman.
 
-Para testar a API na prática, há um catálogo de cenários com entrada e resultado esperado em [`docs/cenarios_de_teste.md`](docs/cenarios_de_teste.md), prontos para executar pelo VS Code (REST Client) em [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http). Os cenários regulatórios são os mesmos do teste automatizado de aceitação.
+### Testar a API na prática
+
+O catálogo [`docs/cenarios_de_teste.md`](docs/cenarios_de_teste.md) descreve cada cenário, com a entrada e o resultado esperado. Os mesmos cenários estão prontos para executar:
+
+- **Postman:** *Import* → [`docs/postman/regulatory-compliance-engine.postman_collection.json`](docs/postman/regulatory-compliance-engine.postman_collection.json). Cada requisição traz testes (aba *Test Results*); para rodar todas de uma vez, use *Run* na collection. Os cenários numerados testam os valores originais; para trocar valores à vontade, use a pasta **Livre (experimente)**.
+- **VS Code:** [`docs/cenarios_de_teste.http`](docs/cenarios_de_teste.http), com a extensão REST Client. O resultado esperado está no título de cada cenário, e a seção **Livre**, no fim do arquivo, serve para testar outros valores.
 
 ## Endpoints
 
