@@ -19,8 +19,9 @@ ENGINE_URL="${ENGINE_URL:-http://localhost:3000}"
 # enganosas; melhor parar antes, dizendo o motivo.
 if ! docker exec legacy-mysql true >/dev/null 2>&1; then
     echo "E2E: docker inacessivel neste shell ou stack fora do ar (container legacy-mysql)."
-    echo "     Suba a stack com 'make up'. No Windows, rode pelo Git Bash: o bash chamado"
-    echo "     pelo PowerShell pode ser o do WSL, que nao enxerga o Docker Desktop."
+    echo "     Suba a stack com 'make up'. No Windows, rode com 'make e2e' ou pelo Git Bash:"
+    echo "     chamar 'bash' direto do PowerShell pode cair no bash do WSL, que nao"
+    echo "     enxerga o Docker Desktop."
     exit 1
 fi
 failures=0

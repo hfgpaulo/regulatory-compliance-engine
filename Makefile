@@ -12,6 +12,15 @@ GATEWAY_RUN = docker run --rm -v "$(CURDIR)/$(GATEWAY):/app" -w /app
 gateway-install gateway-test: export MSYS_NO_PATHCONV := 1
 test-integration: export MONGO_TEST_URI := mongodb://admin:admin123@localhost:27017
 
+# O E2E e um script bash. No Windows, o primeiro "bash" do PATH pode ser o do
+# WSL, que nao enxerga o Docker Desktop; por isso usa-se o bash do Git for
+# Windows, localizado pelo proprio git (sem caminho fixo de instalacao).
+ifeq ($(OS),Windows_NT)
+BASH = "$(shell git --exec-path)/../../../bin/bash.exe"
+else
+BASH = bash
+endif
+
 .PHONY: help up down mongo-up mongo-logs run dev build test test-integration tidy fmt vet gateway-install gateway-test e2e
 
 help: ## Mostra esta ajuda (usa grep e awk: no Windows, rode pelo Git Bash)
@@ -60,7 +69,7 @@ gateway-install: ## Instala as dependencias do gateway (composer.lock)
 
 e2e: ## Sobe a stack e roda o E2E (propostas pelo gateway ate o MySQL e o MongoDB)
 	docker compose up -d --build --wait
-	bash scripts/e2e.sh
+	$(BASH) scripts/e2e.sh
 
 gateway-test: gateway-install ## Analise estatica (PHPStan) e testes (PHPUnit) do gateway
 	$(GATEWAY_RUN) php:8.3-cli sh -c "vendor/bin/phpstan analyse --no-progress && vendor/bin/phpunit"
